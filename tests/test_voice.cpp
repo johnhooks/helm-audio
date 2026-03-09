@@ -1,0 +1,109 @@
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
+#include "voice.h"
+
+using namespace helm_audio;
+
+static constexpr float kSampleRate = 48000.0f;
+
+TEST_CASE("Voice starts idle") {
+    Voice voice;
+    voice.Init(kSampleRate);
+    CHECK(voice.GetState() == VoiceState::Idle);
+}
+
+TEST_CASE("Voice produces silence when idle") {
+    Voice voice;
+    voice.Init(kSampleRate);
+
+    float sum = 0.0f;
+    for (int i = 0; i < 128; i++) {
+        sum += std::abs(voice.Process());
+    }
+    CHECK(sum == 0.0f);
+}
+
+TEST_CASE("Voice produces sound on NoteOn") {
+    Voice voice;
+    voice.Init(kSampleRate);
+    voice.NoteOn(60, 100);
+
+    CHECK(voice.GetState() == VoiceState::Active);
+
+    float sum = 0.0f;
+    for (int i = 0; i < 480; i++) {
+        sum += std::abs(voice.Process());
+    }
+    CHECK(sum > 0.0f);
+}
+
+TEST_CASE("Voice returns to idle after NoteOff and release") {
+    Voice voice;
+    voice.Init(kSampleRate);
+
+    VoiceConfig config;
+    config.release = 0.01f; // short release for test
+    voice.Configure(config);
+
+    voice.NoteOn(60, 100);
+
+    // Process some samples while gate is on
+    for (int i = 0; i < 480; i++) {
+        voice.Process();
+    }
+    CHECK(voice.GetState() == VoiceState::Active);
+
+    voice.NoteOff();
+
+    // Process until envelope finishes
+    for (int i = 0; i < 48000; i++) {
+        voice.Process();
+        if (voice.GetState() == VoiceState::Idle) break;
+    }
+    CHECK(voice.GetState() == VoiceState::Idle);
+}
+
+TEST_CASE("FadeOut transitions to Fading then Idle") {
+    Voice voice;
+    voice.Init(kSampleRate);
+    voice.NoteOn(60, 100);
+
+    // Process a bit
+    for (int i = 0; i < 480; i++) {
+        voice.Process();
+    }
+
+    voice.FadeOut();
+    CHECK(voice.GetState() == VoiceState::Fading);
+
+    // Process until fade completes (50ms = 2400 samples at 48kHz)
+    for (int i = 0; i < 48000; i++) {
+        voice.Process();
+        if (voice.GetState() == VoiceState::Idle) break;
+    }
+    CHECK(voice.GetState() == VoiceState::Idle);
+}
+
+TEST_CASE("Configure changes voice parameters") {
+    Voice voice;
+    voice.Init(kSampleRate);
+
+    VoiceConfig config;
+    config.ratio = 2.0f;
+    config.index = 3.0f;
+    config.filterFreq = 2000.0f;
+    config.filterRes = 0.5f;
+    config.attack = 0.001f;
+    config.decay = 0.05f;
+    config.sustain = 0.5f;
+    config.release = 0.1f;
+    voice.Configure(config);
+
+    voice.NoteOn(48, 127);
+
+    float sum = 0.0f;
+    for (int i = 0; i < 480; i++) {
+        sum += std::abs(voice.Process());
+    }
+    CHECK(sum > 0.0f);
+}
