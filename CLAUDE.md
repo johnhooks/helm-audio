@@ -1,12 +1,12 @@
 # helm-audio
 
-The audio system for [Helm](https://github.com/johnhooks/helm), a browser-based space game. An 8-track FM sound engine built on [DaisySP](https://github.com/electro-smith/DaisySP), compiled to WASM and running as a Web Audio AudioWorkletProcessor.
+The audio system for [Helm](https://github.com/johnhooks/helm), a browser-based space game. A 16-track FM sound engine built on [DaisySP](https://github.com/electro-smith/DaisySP), compiled to WASM and running as a Web Audio AudioWorkletProcessor.
 
 ## What it is
 
 A sequenced FM sound engine. JS builds a binary-encoded sequence (note events, voice configurations, timing) and sends it to the C++ engine via MessagePort. The engine steps through the sequence with sample-accurate timing and renders audio. JS is the brain, C++ is the clock.
 
-The engine has 8 tracks. Each track is assigned a voice. Voices are FM patches built from DaisySP modules (FM2 operators, filters, envelopes, LFOs). Voices can be dynamically swapped through events in the sequence — the engine handles the timing to do this cleanly.
+The engine has 16 tracks. Each track is assigned a voice. Voices are FM patches built from DaisySP modules (FM2 operators, filters, envelopes, LFOs). Voices can be dynamically swapped through events in the sequence — the engine handles the timing to do this cleanly.
 
 ## Tech stack
 

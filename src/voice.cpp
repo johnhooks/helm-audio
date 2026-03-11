@@ -27,7 +27,7 @@ void Voice::Init(float sampleRate) {
     savedRelease_ = 0.3f;
 }
 
-void Voice::Configure(const VoiceConfig& config) {
+void Voice::Configure(const Patch& config) {
     fm_.SetRatio(config.ratio);
     fm_.SetIndex(config.index);
 

@@ -3,6 +3,7 @@ dist
 node_modules
 bun.lock
 
+.idea
 docs/plans/.wip
 
 .DS_Store

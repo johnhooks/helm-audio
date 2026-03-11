@@ -11,7 +11,7 @@ enum class VoiceState : uint8_t {
     Fading,
 };
 
-struct VoiceConfig {
+struct Patch {
     // FM2 operator params
     float ratio = 1.0f;
     float index = 1.0f;
@@ -30,7 +30,7 @@ struct VoiceConfig {
 class Voice {
 public:
     void Init(float sampleRate);
-    void Configure(const VoiceConfig& config);
+    void Configure(const Patch& config);
     float Process();
     void NoteOn(uint8_t note, uint8_t velocity);
     void NoteOff();
