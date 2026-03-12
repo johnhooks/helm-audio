@@ -40,10 +40,11 @@ public:
 
 // -- Helpers ------------------------------------------------------------------
 
-// Build a pattern with steps on track 0 only.
-static Pattern makeSimplePattern(std::vector<Step> steps, int length = 16) {
+// Build a 1-track pattern with steps on track 0.
+static Pattern makePattern(std::vector<Step> steps, int length = 16) {
     Pattern p;
     p.length = length;
+    p.tracks.resize(1);
     p.tracks[0].steps = std::move(steps);
     return p;
 }
@@ -68,7 +69,7 @@ TEST_CASE("Step through a pattern and verify trigs fire at correct steps") {
     steps[0].trig = NoteOn{60, 100};
     steps[2].trig = NoteOn{64, 80};
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 4);
+    Pattern pattern = makePattern(std::move(steps), 4);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -103,7 +104,7 @@ TEST_CASE("Dispatch order: patch load fires before trig on the same step") {
     steps[0].trig = NoteOn{60, 100};
     steps[0].locks.push_back(LockRatio{2.0f});
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 1);
+    Pattern pattern = makePattern(std::move(steps), 1);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -123,7 +124,7 @@ TEST_CASE("Loop: repeating trigs fire again, oneshot trigs don't") {
     steps[0].oneshot = true;
     steps[1].trig = NoteOn{64, 100};
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 2);
+    Pattern pattern = makePattern(std::move(steps), 2);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -145,6 +146,7 @@ TEST_CASE("Loop: repeating trigs fire again, oneshot trigs don't") {
 TEST_CASE("Polymetric tracks cycle correctly") {
     Pattern pattern;
     pattern.length = 16; // 96 ticks
+    pattern.tracks.resize(2);
 
     // Track 0: 3 steps (cycle = 18 ticks).
     pattern.tracks[0].steps.resize(3);
@@ -200,11 +202,11 @@ TEST_CASE("Polymetric tracks cycle correctly") {
 TEST_CASE("Queue a pending pattern, swap happens at boundary") {
     std::vector<Step> steps1(1);
     steps1[0].trig = NoteOn{60, 100};
-    Pattern pattern1 = makeSimplePattern(std::move(steps1), 2);
+    Pattern pattern1 = makePattern(std::move(steps1), 2);
 
     std::vector<Step> steps2(1);
     steps2[0].trig = NoteOn{72, 100};
-    Pattern pattern2 = makeSimplePattern(std::move(steps2), 2);
+    Pattern pattern2 = makePattern(std::move(steps2), 2);
 
     MockListener listener;
     Sequencer seq;
@@ -227,7 +229,8 @@ TEST_CASE("Queue a pending pattern, swap happens at boundary") {
 }
 
 TEST_CASE("Empty pattern loops silently") {
-    Pattern pattern; // all tracks empty
+    Pattern pattern;
+    pattern.tracks.resize(1); // 1 track, no steps
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -247,7 +250,7 @@ TEST_CASE("Multiple param locks on a single step") {
     steps[0].locks.push_back(LockFilterFreq{4000.0f});
     steps[0].locks.push_back(LockRelease{0.5f});
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 1);
+    Pattern pattern = makePattern(std::move(steps), 1);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -276,7 +279,7 @@ TEST_CASE("Micro-timing: positive offset fires late, negative fires early") {
     steps[2].trig = NoteOn{64, 100};
     steps[2].microTiming = -2;  // fires at tick 12-2 = 10
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 3);
+    Pattern pattern = makePattern(std::move(steps), 3);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -306,7 +309,7 @@ TEST_CASE("Micro-timing clamping: conflicting offsets clamp correctly") {
     steps[1].trig = NoteOn{64, 100};
     steps[1].microTiming = -5;
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 2);
+    Pattern pattern = makePattern(std::move(steps), 2);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -333,7 +336,7 @@ TEST_CASE("Swing: every even step offset by +3 ticks") {
         steps[i].microTiming = (i % 2 == 1) ? 3 : 0;
     }
 
-    Pattern pattern = makeSimplePattern(std::move(steps), 4);
+    Pattern pattern = makePattern(std::move(steps), 4);
     MockListener listener;
     Sequencer seq;
     seq.Init(&listener, &pattern);
@@ -344,4 +347,22 @@ TEST_CASE("Swing: every even step offset by +3 ticks") {
     CHECK(!ticks[9].empty());   // step 1: tick 6+3 = 9
     CHECK(!ticks[12].empty());  // step 2: tick 12
     CHECK(!ticks[21].empty());  // step 3: tick 18+3 = 21
+}
+
+TEST_CASE("Single-track sequencer works") {
+    std::vector<Step> steps(2);
+    steps[0].trig = NoteOn{60, 100};
+    steps[1].trig = NoteOn{64, 100};
+
+    Pattern pattern = makePattern(std::move(steps), 2);
+    MockListener listener;
+    Sequencer seq;
+    seq.Init(&listener, &pattern);
+
+    auto ticks = advanceAndCollect(seq, listener, 12);
+
+    REQUIRE(ticks[0].size() == 1);
+    CHECK(ticks[0][0].note == 60);
+    REQUIRE(ticks[6].size() == 1);
+    CHECK(ticks[6][0].note == 64);
 }

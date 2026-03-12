@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <cassert>
 #include <cstdint>
 #include <optional>
 #include <variant>
@@ -8,7 +8,6 @@
 
 namespace helm_audio {
 
-static constexpr int kNumTracks = 16;
 static constexpr int kPPQ = 24;          // pulses (ticks) per quarter note
 static constexpr int kTicksPerStep = 6;  // 24 PPQ / 4 steps per beat = 6 ticks per sixteenth note
 
@@ -69,10 +68,10 @@ struct Track {
     std::vector<Step> steps;
 };
 
-/// A pattern: 16 tracks, each with independent step counts.
-/// Tracks shorter than `length` cycle within the pattern.
+/// A pattern with a variable number of tracks and independent step counts.
+/// The track count must match the sequencer instance's track count.
 struct Pattern {
-    std::array<Track, kNumTracks> tracks;
+    std::vector<Track> tracks;
     int length = 16;  // pattern length in steps (sixteenth notes)
 };
 
@@ -113,7 +112,7 @@ private:
         int loopCount = 0;   // number of times this track has wrapped
         int lastFireTick = -1; // tick the previous step actually fired on
     };
-    std::array<TrackState, kNumTracks> trackStates_{};
+    std::vector<TrackState> trackStates_;
 };
 
 } // namespace helm_audio

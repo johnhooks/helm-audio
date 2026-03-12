@@ -12,7 +12,7 @@ void Sequencer::Init(SequencerListener* listener, Pattern* pattern) {
     pattern_ = pattern;
     pendingPattern_ = nullptr;
     tick_ = 0;
-    trackStates_ = {};
+    trackStates_.assign(pattern->tracks.size(), TrackState{});
 }
 
 void Sequencer::SetPendingPattern(Pattern* pattern) {
@@ -46,8 +46,10 @@ void Sequencer::SetPendingPattern(Pattern* pattern) {
 // (you can't go back before the pattern started).
 
 void Sequencer::Advance(int numTicks) {
+    int numTracks = static_cast<int>(pattern_->tracks.size());
+
     for (int t = 0; t < numTicks; ++t) {
-        for (int i = 0; i < kNumTracks; ++i) {
+        for (int i = 0; i < numTracks; ++i) {
             const auto& track = pattern_->tracks[i];
             if (track.steps.empty()) {
                 continue;
@@ -124,18 +126,23 @@ void Sequencer::CheckLoopBoundary() {
     int patternTicks = pattern_->length * kTicksPerStep;
 
     if (tick_ >= patternTicks) {
-        if (pendingPattern_ != nullptr) {
+        bool swapped = pendingPattern_ != nullptr;
+
+        if (swapped) {
             pattern_ = pendingPattern_;
             pendingPattern_ = nullptr;
+            // New pattern — full reset.
+            trackStates_.assign(pattern_->tracks.size(), TrackState{});
+        } else {
+            // Same pattern looping — reset cursors but keep loopCount
+            // so oneshot trigs stay consumed.
+            for (auto& state : trackStates_) {
+                state.cursor = 0;
+                state.lastFireTick = -1;
+            }
         }
 
         tick_ = 0;
-        // Reset cursors and lastFireTick for the new cycle.
-        // loopCount persists for oneshot tracking.
-        for (auto& state : trackStates_) {
-            state.cursor = 0;
-            state.lastFireTick = -1;
-        }
     }
 }
 
