@@ -74,7 +74,6 @@ struct Track {
 struct Pattern {
     std::array<Track, kNumTracks> tracks;
     int length = 16;  // pattern length in steps (sixteenth notes)
-    bool loop = true;
 };
 
 // -- Listener interface -------------------------------------------------------
@@ -87,6 +86,34 @@ public:
     virtual void onFadeOut(uint8_t track) = 0;
     virtual void onLoadPatch(uint8_t track, uint8_t patchIndex) = 0;
     virtual void onParamLock(uint8_t track, const ParamLock& lock) = 0;
+};
+
+// -- Sequencer ----------------------------------------------------------------
+
+class Sequencer {
+public:
+    void Init(SequencerListener* listener, Pattern* pattern);
+    void SetPendingPattern(Pattern* pattern);
+    void Advance(int numTicks);
+
+    int GetTick() const { return tick_; }
+
+private:
+    void DispatchStep(uint8_t trackIndex, const Step& step);
+    void CheckLoopBoundary();
+
+    SequencerListener* listener_ = nullptr;
+    Pattern* pattern_ = nullptr;
+    Pattern* pendingPattern_ = nullptr;
+
+    int tick_ = 0;  // current tick within the pattern
+
+    struct TrackState {
+        int cursor = 0;      // current step index
+        int loopCount = 0;   // number of times this track has wrapped
+        int lastFireTick = -1; // tick the previous step actually fired on
+    };
+    std::array<TrackState, kNumTracks> trackStates_{};
 };
 
 } // namespace helm_audio

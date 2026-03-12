@@ -12,6 +12,7 @@ add_subdirectory(DaisySP)
 # --- Engine library ---
 add_library(helm_audio STATIC
     src/voice.cpp
+    src/sequencer.cpp
 )
 target_include_directories(helm_audio PUBLIC src/)
 target_link_libraries(helm_audio PUBLIC DaisySP)
