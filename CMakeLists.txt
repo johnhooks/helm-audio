@@ -34,6 +34,7 @@ if(NOT EMSCRIPTEN)
     # --- Tests ---
     add_executable(tests
         tests/test_voice.cpp
+        tests/test_sequencer.cpp
     )
     target_link_libraries(tests PRIVATE helm_audio doctest::doctest)
     target_include_directories(tests PRIVATE ${audiofile_SOURCE_DIR})

@@ -55,6 +55,11 @@ void Sequencer::Advance(int numTicks) {
 
             auto& state = trackStates_[i];
             int stepCount = static_cast<int>(track.steps.size());
+            int trackCycleTicks = stepCount * kTicksPerStep;
+
+            // Use the track-local tick so shorter tracks cycle
+            // independently within the pattern (polymetric).
+            int trackTick = tick_ % trackCycleTicks;
 
             // The grid position for the current step.
             int gridTick = state.cursor * kTicksPerStep;
@@ -65,7 +70,7 @@ void Sequencer::Advance(int numTicks) {
             int earliest = std::max(0, state.lastFireTick + 1);
             fireTime = std::max(fireTime, earliest);
 
-            if (tick_ == fireTime) {
+            if (trackTick == fireTime) {
                 const auto& step = track.steps[state.cursor];
 
                 if (step.oneshot && state.loopCount > 0) {
@@ -74,11 +79,12 @@ void Sequencer::Advance(int numTicks) {
                     DispatchStep(static_cast<uint8_t>(i), step);
                 }
 
-                state.lastFireTick = tick_;
+                state.lastFireTick = trackTick;
                 state.cursor++;
                 if (state.cursor >= stepCount) {
                     state.cursor = 0;
                     state.loopCount++;
+                    state.lastFireTick = -1;
                 }
             }
         }
