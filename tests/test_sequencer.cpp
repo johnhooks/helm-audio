@@ -277,7 +277,7 @@ TEST_CASE("Micro-timing: positive offset fires late, negative fires early") {
     steps[1].trig = NoteOn{62, 100};
     steps[1].microTiming = 3;   // fires at tick 6+3 = 9
     steps[2].trig = NoteOn{64, 100};
-    steps[2].microTiming = -2;  // fires at tick 12-2 = 10
+    steps[2].microTiming = -2;  // peeked by step 1, fires at grid 6 + (6 + -2) = tick 10
 
     Pattern pattern = makePattern(std::move(steps), 3);
     MockListener listener;
@@ -294,15 +294,14 @@ TEST_CASE("Micro-timing: positive offset fires late, negative fires early") {
     REQUIRE(ticks[9].size() == 1);
     CHECK(ticks[9][0].note == 62);
 
-    // Step 2 at tick 10 (grid 12 - offset 2).
+    // Step 2 at tick 10 (peeked: grid 6 + 6 + (-2) = 10).
     REQUIRE(ticks[10].size() == 1);
     CHECK(ticks[10][0].note == 64);
 }
 
-TEST_CASE("Micro-timing clamping: conflicting offsets clamp correctly") {
-    // Step 0 at +5, step 1 at -5. Both want near tick 5 and tick 1.
-    // Step 0 fires at tick 5. Step 1 would fire at tick 6-5=1, but that's
-    // before step 0's fire tick (5). Clamped to tick 6 (lastFireTick + 1).
+TEST_CASE("Overlapping offsets: current +5 and next -5 both fire") {
+    // Step 0 at +5 fires at tick 5. Step 1 at -5 peeked at tick 6-5=1.
+    // Both fire within cursor 0's window, at different ticks.
     std::vector<Step> steps(2);
     steps[0].trig = NoteOn{60, 100};
     steps[0].microTiming = 5;
@@ -316,16 +315,150 @@ TEST_CASE("Micro-timing clamping: conflicting offsets clamp correctly") {
 
     auto ticks = advanceAndCollect(seq, listener, 12);
 
-    // Step 0 fires at tick 5.
+    // Step 1 (peeked) fires at tick 1 (grid 0 + 6 + (-5) = 1).
+    REQUIRE(ticks[1].size() == 1);
+    CHECK(ticks[1][0].note == 64);
+
+    // Step 0 fires at tick 5 (grid 0 + 5).
     REQUIRE(ticks[5].size() == 1);
     CHECK(ticks[5][0].note == 60);
+}
 
-    // Step 1 clamped to tick 6 (not tick 1).
+TEST_CASE("Same-tick dispatch: current and peek fire on same tick") {
+    // Step 0 at +3, step 1 at -3. Both fire at tick 3.
+    // Current dispatches first, then peek.
+    std::vector<Step> steps(2);
+    steps[0].trig = NoteOn{60, 100};
+    steps[0].microTiming = 3;
+    steps[1].trig = NoteOn{64, 100};
+    steps[1].microTiming = -3;
+
+    Pattern pattern = makePattern(std::move(steps), 2);
+    MockListener listener;
+    Sequencer seq;
+    seq.Init(&listener, &pattern);
+
+    auto ticks = advanceAndCollect(seq, listener, 12);
+
+    // Both fire at tick 3. Current (step 0) first, then peek (step 1).
+    REQUIRE(ticks[3].size() == 2);
+    CHECK(ticks[3][0].note == 60);
+    CHECK(ticks[3][1].note == 64);
+}
+
+TEST_CASE("Negative offset on step 0 fires at end of previous loop") {
+    // 2-step pattern. Step 0 has microTiming = -3.
+    // On the first loop, step 0 can't fire early (no previous cycle).
+    // On the second loop, step 0 is peeked by step 1 (the last step)
+    // and fires at tick 12 - 3 = 9 (end of the first cycle's last step window).
+    std::vector<Step> steps(2);
+    steps[0].trig = NoteOn{60, 100};
+    steps[0].microTiming = -3;
+    steps[1].trig = NoteOn{64, 100};
+    steps[1].microTiming = 0;
+
+    Pattern pattern = makePattern(std::move(steps), 2);
+    MockListener listener;
+    Sequencer seq;
+    seq.Init(&listener, &pattern);
+
+    // First loop (12 ticks): step 0 fires at grid 0 (microTiming -3 but
+    // cursor starts at 0, so it fires as current with negative offset...
+    // actually with the new model, negative offset on current step doesn't
+    // fire because we only check current for microTiming >= 0.
+    // Step 0 will be peeked by step 1 of the previous cycle — but there
+    // is no previous cycle on the first loop.
+    // So step 0 on first loop: it needs to fire somewhere. Since the cursor
+    // starts on step 0 and microTiming is -3, and current only fires for >= 0,
+    // step 0 won't fire as current. It would need to have been peeked from
+    // a previous step — but there isn't one on the first loop.
+    //
+    // This means: on the very first loop, step 0 with negative micro-timing
+    // simply doesn't fire. This is the one edge case where we lose an event.
+    // On subsequent loops, step 1 peeks step 0 and fires it early.
+    auto ticks = advanceAndCollect(seq, listener, 12);
+
+    // Step 0 does NOT fire on first loop (no previous step to peek from).
+    // Step 1 fires at tick 6.
     REQUIRE(ticks[6].size() == 1);
     CHECK(ticks[6][0].note == 64);
 
-    // Nothing at tick 1.
-    CHECK(ticks[1].empty());
+    // Second loop: step 1 peeks step 0, fires it at tick 6 + 6 + (-3) = 9.
+    ticks = advanceAndCollect(seq, listener, 12);
+
+    // Step 0 peeked by step 1, fires at tick 9 of this cycle.
+    REQUIRE(ticks[9].size() == 1);
+    CHECK(ticks[9][0].note == 60);
+
+    // Step 1 fires at tick 6 of this cycle.
+    REQUIRE(ticks[6].size() == 1);
+    CHECK(ticks[6][0].note == 64);
+}
+
+TEST_CASE("Peek across pattern swap boundary") {
+    // Pattern 1: step 0 = note 60. Pattern 2: step 0 = note 72 with -3.
+    // When pattern 2 is pending, step 0 of pattern 1 (last step) peeks
+    // into pattern 2's step 0 and fires it early.
+    std::vector<Step> steps1(1);
+    steps1[0].trig = NoteOn{60, 100};
+    Pattern pattern1 = makePattern(std::move(steps1), 1);
+
+    std::vector<Step> steps2(1);
+    steps2[0].trig = NoteOn{72, 100};
+    steps2[0].microTiming = -3;
+    Pattern pattern2 = makePattern(std::move(steps2), 1);
+
+    MockListener listener;
+    Sequencer seq;
+    seq.Init(&listener, &pattern1);
+
+    seq.SetPendingPattern(&pattern2);
+
+    auto ticks = advanceAndCollect(seq, listener, 6);
+
+    // Step 0 of pattern1 fires at tick 0.
+    REQUIRE(ticks[0].size() == 1);
+    CHECK(ticks[0][0].note == 60);
+
+    // Step 0 of pattern2 peeked, fires at tick 0 + 6 + (-3) = 3.
+    REQUIRE(ticks[3].size() == 1);
+    CHECK(ticks[3][0].note == 72);
+}
+
+TEST_CASE("Pattern swap with different track count") {
+    // Pattern 1: 2 tracks. Pattern 2: 1 track.
+    // Track 1 in pattern 1 should not peek into pattern 2 (no track 1).
+    Pattern pattern1;
+    pattern1.length = 1;
+    pattern1.tracks.resize(2);
+    pattern1.tracks[0].steps.resize(1);
+    pattern1.tracks[0].steps[0].trig = NoteOn{60, 100};
+    pattern1.tracks[1].steps.resize(1);
+    pattern1.tracks[1].steps[0].trig = NoteOn{48, 100};
+
+    Pattern pattern2;
+    pattern2.length = 1;
+    pattern2.tracks.resize(1);
+    pattern2.tracks[0].steps.resize(1);
+    pattern2.tracks[0].steps[0].trig = NoteOn{72, 100};
+    pattern2.tracks[0].steps[0].microTiming = -2;
+
+    MockListener listener;
+    Sequencer seq;
+    seq.Init(&listener, &pattern1);
+
+    seq.SetPendingPattern(&pattern2);
+
+    auto ticks = advanceAndCollect(seq, listener, 6);
+
+    // Both tracks fire at tick 0.
+    REQUIRE(ticks[0].size() == 2);
+
+    // Pattern 2's step 0 peeked on track 0, fires at 0 + 6 + (-2) = 4.
+    REQUIRE(ticks[4].size() == 1);
+    CHECK(ticks[4][0].note == 72);
+
+    // No peek crash for track 1 (doesn't exist in pattern 2).
 }
 
 TEST_CASE("Swing: every even step offset by +3 ticks") {

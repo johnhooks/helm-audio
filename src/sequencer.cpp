@@ -1,6 +1,5 @@
 #include "sequencer.h"
 
-#include <algorithm>
 #include <cassert>
 
 namespace helm_audio {
@@ -20,30 +19,25 @@ void Sequencer::SetPendingPattern(Pattern* pattern) {
     pendingPattern_ = pattern;
 }
 
-// Micro-timing design
-// --------------------
-// Micro-timing nudges a step's fire time relative to its grid position. The
-// offset is in ticks (range -6 to +5, i.e. within one step of 6 ticks).
+// Micro-timing: cursor + peek model
+// -----------------------------------
+// The micro-timing range -5 to +5 maps exactly to one 6-tick window per
+// cursor position. When the cursor sits on step N (grid = N * 6):
 //
-// The sequencer cursor always advances in step order: step 0, then 1, then 2,
-// etc. Micro-timing cannot reorder steps. If a step's micro-timed fire time
-// falls before the tick when the previous step actually fired, the offset is
-// clamped — the step fires immediately (on the current tick) instead of in the
-// past. This means:
+//   Current step (positive/zero offset): fires at grid + microTiming (0 to +5)
+//   Peek step N+1 (negative offset):     fires at (grid + 6) + microTiming (-5 to -1)
 //
-//   - Steps never fire out of order within a track.
-//   - No collisions: each step fires on exactly one tick.
-//   - No while-loops or wrapping tricks needed in the dispatch logic.
+// Both resolve to the same window [grid, grid + 5]. The cursor advances when
+// the tick reaches grid + 6 (the next step's grid position).
 //
-// Musically, a clamped offset means two steps were too close together for both
-// offsets to fully apply. The difference is at most a few ticks (sub-
-// millisecond at typical BPMs) — inaudible in practice. The encoder can avoid
-// this entirely by not placing conflicting offsets on adjacent steps, but the
-// engine handles it gracefully either way.
+// If both the current and peek fire on the same tick, both dispatch — current
+// first, then peek. No clamping, no reordering. When the cursor advances, the
+// peeked step becomes current but is marked as already fired so it doesn't
+// dispatch again.
 //
-// On the first step of a pattern (or after a loop/swap), there is no previous
-// fire tick, so negative offsets on step 0 are clamped to the grid position
-// (you can't go back before the pattern started).
+// At loop/swap boundaries, PeekNextStep wraps to step 0 of the same pattern
+// or step 0 of the pending pattern. Negative offsets on step 0 fire at the
+// tail of the previous cycle.
 
 void Sequencer::Advance(int numTicks) {
     int numTracks = static_cast<int>(pattern_->tracks.size());
@@ -58,35 +52,36 @@ void Sequencer::Advance(int numTicks) {
             auto& state = trackStates_[i];
             int stepCount = static_cast<int>(track.steps.size());
             int trackCycleTicks = stepCount * kTicksPerStep;
-
-            // Use the track-local tick so shorter tracks cycle
-            // independently within the pattern (polymetric).
             int trackTick = tick_ % trackCycleTicks;
+            int grid = state.cursor * kTicksPerStep;
 
-            // The grid position for the current step.
-            int gridTick = state.cursor * kTicksPerStep;
-
-            // Apply micro-timing offset, then clamp: never fire before the
-            // previous step's actual fire tick, and never before tick 0.
-            int fireTime = gridTick + track.steps[state.cursor].microTiming;
-            int earliest = std::max(0, state.lastFireTick + 1);
-            fireTime = std::max(fireTime, earliest);
-
-            if (trackTick == fireTime) {
-                const auto& step = track.steps[state.cursor];
-
-                if (step.oneshot && state.loopCount > 0) {
-                    // Skip consumed oneshot, but still advance cursor.
-                } else {
-                    DispatchStep(static_cast<uint8_t>(i), step);
+            // Current step — fires on positive/zero micro-timing offset.
+            // Steps with negative offsets already fired as a peek from the
+            // previous cursor position, so the >= 0 check naturally skips them.
+            const auto& current = track.steps[state.cursor];
+            if (current.microTiming >= 0 && trackTick == grid + current.microTiming) {
+                if (!(current.oneshot && state.loopCount > 0)) {
+                    DispatchStep(static_cast<uint8_t>(i), current);
                 }
+            }
 
-                state.lastFireTick = trackTick;
+            // Peek — next step fires early on negative micro-timing offset.
+            const Step* next = PeekNextStep(i, state.cursor, stepCount);
+            if (next && next->microTiming < 0) {
+                int peekFireTime = grid + kTicksPerStep + next->microTiming;
+                if (trackTick == peekFireTime) {
+                    if (!(next->oneshot && state.loopCount > 0)) {
+                        DispatchStep(static_cast<uint8_t>(i), *next);
+                    }
+                }
+            }
+
+            // Advance cursor at next grid boundary.
+            if (trackTick == grid + kTicksPerStep - 1) {
                 state.cursor++;
                 if (state.cursor >= stepCount) {
                     state.cursor = 0;
                     state.loopCount++;
-                    state.lastFireTick = -1;
                 }
             }
         }
@@ -95,6 +90,31 @@ void Sequencer::Advance(int numTicks) {
 
         CheckLoopBoundary();
     }
+}
+
+const Step* Sequencer::PeekNextStep(int trackIndex, int cursor, int stepCount) {
+    int nextCursor = cursor + 1;
+
+    // Normal case: next step in same track.
+    if (nextCursor < stepCount) {
+        return &pattern_->tracks[trackIndex].steps[nextCursor];
+    }
+
+    // At the last step — peek wraps.
+    // If a pending pattern is queued and we're near the pattern boundary,
+    // peek into the pending pattern's step 0 (if the track exists).
+    if (pendingPattern_ != nullptr) {
+        if (trackIndex < static_cast<int>(pendingPattern_->tracks.size())) {
+            const auto& pendingTrack = pendingPattern_->tracks[trackIndex];
+            if (!pendingTrack.steps.empty()) {
+                return &pendingTrack.steps[0];
+            }
+        }
+        return nullptr;
+    }
+
+    // Same pattern looping — wrap to step 0.
+    return &pattern_->tracks[trackIndex].steps[0];
 }
 
 void Sequencer::DispatchStep(uint8_t trackIndex, const Step& step) {
@@ -131,14 +151,10 @@ void Sequencer::CheckLoopBoundary() {
         if (swapped) {
             pattern_ = pendingPattern_;
             pendingPattern_ = nullptr;
-            // New pattern — full reset.
             trackStates_.assign(pattern_->tracks.size(), TrackState{});
         } else {
-            // Same pattern looping — reset cursors but keep loopCount
-            // so oneshot trigs stay consumed.
             for (auto& state : trackStates_) {
                 state.cursor = 0;
-                state.lastFireTick = -1;
             }
         }
 

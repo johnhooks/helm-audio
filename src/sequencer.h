@@ -58,7 +58,7 @@ struct Step {
     Trigger trig{};
     std::vector<ParamLock> locks;
     std::optional<uint8_t> patchIndex{};
-    int8_t microTiming = 0;  // tick offset from grid position (-6 to +5)
+    int8_t microTiming = 0;  // tick offset from grid position (-5 to +5)
     bool oneshot = false;
 };
 
@@ -99,6 +99,7 @@ public:
 
 private:
     void DispatchStep(uint8_t trackIndex, const Step& step);
+    const Step* PeekNextStep(int trackIndex, int cursor, int stepCount);
     void CheckLoopBoundary();
 
     SequencerListener* listener_ = nullptr;
@@ -110,7 +111,6 @@ private:
     struct TrackState {
         int cursor = 0;      // current step index
         int loopCount = 0;   // number of times this track has wrapped
-        int lastFireTick = -1; // tick the previous step actually fired on
     };
     std::vector<TrackState> trackStates_;
 };
