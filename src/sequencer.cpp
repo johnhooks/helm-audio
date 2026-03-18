@@ -32,8 +32,8 @@ void Sequencer::SetPendingPattern(Pattern* pattern) {
 //
 // If both the current and peek fire on the same tick, both dispatch — current
 // first, then peek. No clamping, no reordering. When the cursor advances, the
-// peeked step becomes current but is marked as already fired so it doesn't
-// dispatch again.
+// peeked step becomes current — but since it has a negative offset, the
+// >= 0 check on current naturally skips it. No flag needed.
 //
 // At loop/swap boundaries, PeekNextStep wraps to step 0 of the same pattern
 // or step 0 of the pending pattern. Negative offsets on step 0 fire at the

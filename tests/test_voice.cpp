@@ -43,6 +43,8 @@ TEST_CASE("Voice returns to idle after NoteOff and release") {
 
     Patch config;
     config.release = 0.01f; // short release for test
+    config.ops[0].release = 0.01f;
+    config.ops[1].release = 0.01f;
     voice.Configure(config);
 
     voice.NoteOn(60, 100);
@@ -92,7 +94,7 @@ TEST_CASE("16 voices mix without blowup") {
         voices[v].Init(kSampleRate);
 
         Patch config;
-        config.ratio = 1.0f + (v % 4) * 0.5f;
+        config.ops[1].ratio = 1.0f + (v % 4) * 0.5f;
         config.index = 0.3f + (v % 3) * 0.3f;
         config.attack = 0.01f;
         config.release = 0.1f;
@@ -129,7 +131,7 @@ TEST_CASE("Configure changes voice parameters") {
     voice.Init(kSampleRate);
 
     Patch config;
-    config.ratio = 2.0f;
+    config.ops[1].ratio = 2.0f;
     config.index = 3.0f;
     config.filterFreq = 2000.0f;
     config.filterRes = 0.5f;

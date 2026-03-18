@@ -1,4 +1,5 @@
 build
+tmp
 dist
 node_modules
 bun.lock

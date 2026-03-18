@@ -17,7 +17,7 @@ static constexpr float kDelayFeedback = 0.45f;
 static constexpr float kDelayMix = 0.35f; // wet/dry
 
 int main(int argc, char* argv[]) {
-    std::string outputPath = "output.wav";
+    std::string outputPath = "tmp/output.wav";
     if (argc > 1) {
         outputPath = argv[1];
     }
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < 8; i++) {
         Patch cfg;
-        cfg.ratio = ambientRatios[i];
+        cfg.ops[1].ratio = ambientRatios[i];
         cfg.index = ambientIndices[i];
         cfg.filterFreq = 1200.0f + i * 200.0f;
         cfg.filterRes = 0.2f;
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < 8; i++) {
         Patch cfg;
-        cfg.ratio = 1.0f + (i % 4) * 0.5f;
+        cfg.ops[1].ratio = 1.0f + (i % 4) * 0.5f;
         cfg.index = 0.8f + (i % 3) * 0.4f;
         cfg.filterFreq = 3000.0f + i * 400.0f;
         cfg.filterRes = 0.3f;

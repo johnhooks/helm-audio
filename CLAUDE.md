@@ -29,6 +29,12 @@ The engine has 16 tracks. Each track is assigned a voice. Voices are FM patches 
 
 See `docs/architecture.md`.
 
+## Reference implementations
+
+- **DaisySP** (`../DaisySP`) — DSP building blocks we build on directly
+- **DaisyExamples** (`../DaisyExamples`) — example projects using DaisySP; useful for usage patterns (FM voices, filters, envelopes, signal routing)
+- **Mutable Instruments Eurorack** (`../eurorack`) — Émilie Gillet's open-source Eurorack module firmware; reference for FM voice design, envelopes, resonators, and DSP architecture (DaisySP itself borrows from this codebase)
+
 ## Current focus
 
 Building the engine. See `docs/plans/.wip/` for implementation plans.
