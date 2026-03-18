@@ -1,4 +1,5 @@
 #include "AudioFile.h"
+#include "modulation.h"
 #include "voice.h"
 #include <array>
 #include <chrono>
@@ -23,8 +24,10 @@ int main(int argc, char* argv[]) {
     }
 
     std::array<Voice, kNumVoices> voices;
-    for (auto& v : voices) {
-        v.Init(kSampleRate);
+    std::array<VoiceModState, kNumVoices> mods;
+    for (int i = 0; i < kNumVoices; i++) {
+        voices[i].Init(kSampleRate);
+        mods[i].Init(kSampleRate);
     }
 
     // --- Ambient voices (0-7): slow evolving FM drones ---
@@ -43,7 +46,22 @@ int main(int argc, char* argv[]) {
         cfg.decay = 0.5f;
         cfg.sustain = 0.4f;
         cfg.release = 2.0f + i * 0.2f; // long releases
+
+        // LFO 0: slow filter sweep — each voice at a slightly different rate
+        // so they drift against each other (0.07–0.21 Hz)
+        cfg.lfos[0].rate = 0.07f + i * 0.02f;
+        cfg.lfos[0].waveform = LfoWaveform::Triangle;
+        cfg.lfoRoutings[0].routeCount = 1;
+        cfg.lfoRoutings[0].routes[0] = {ParamId::FilterFreq, 400.0f + i * 50.0f};
+
+        // LFO 1: very slow index drift — subtle timbre movement
+        cfg.lfos[1].rate = 0.03f + i * 0.01f;
+        cfg.lfos[1].waveform = LfoWaveform::Sine;
+        cfg.lfoRoutings[1].routeCount = 1;
+        cfg.lfoRoutings[1].routes[0] = {ParamId::Index, 0.15f};
+
         voices[i].Configure(cfg);
+        mods[i].LoadPatch(cfg);
     }
 
     // --- Chord voices (8-15): Cm9 chord, brighter and punchier ---
@@ -60,7 +78,21 @@ int main(int argc, char* argv[]) {
         cfg.decay = 0.3f;
         cfg.sustain = 0.6f;
         cfg.release = 0.8f + i * 0.1f;
+
+        // LFO 0: index shimmer — faster than ambient, slightly different per voice
+        cfg.lfos[0].rate = 0.5f + i * 0.15f;
+        cfg.lfos[0].waveform = LfoWaveform::Sine;
+        cfg.lfoRoutings[0].routeCount = 1;
+        cfg.lfoRoutings[0].routes[0] = {ParamId::Index, 0.3f};
+
+        // LFO 1: gentle filter movement
+        cfg.lfos[1].rate = 0.2f + i * 0.05f;
+        cfg.lfos[1].waveform = LfoWaveform::Triangle;
+        cfg.lfoRoutings[1].routeCount = 1;
+        cfg.lfoRoutings[1].routes[0] = {ParamId::FilterFreq, 600.0f};
+
         voices[8 + i].Configure(cfg);
+        mods[8 + i].LoadPatch(cfg);
     }
 
     // --- Mix filter: slow sweeping bandpass ---
@@ -152,6 +184,13 @@ int main(int argc, char* argv[]) {
         float lfoVal = filterLfo.Process();
         float cutoff = 300.0f + (lfoVal + 1.0f) * 0.5f * 3700.0f;
         mixFilter.SetFreq(cutoff);
+
+        // --- Per-voice modulation ---
+        for (int v = 0; v < kNumVoices; v++) {
+            mods[v].Tick();
+            voices[v].SetParam(ParamId::FilterFreq, mods[v].GetResolved(ParamId::FilterFreq));
+            voices[v].SetParam(ParamId::Index, mods[v].GetResolved(ParamId::Index));
+        }
 
         // --- Render all voices ---
         float mix = 0.0f;

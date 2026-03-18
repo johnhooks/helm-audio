@@ -1,5 +1,7 @@
 #pragma once
 
+#include "param.h"
+
 #include <cassert>
 #include <cstdint>
 #include <optional>
@@ -10,22 +12,6 @@ namespace helm_audio {
 
 static constexpr int kPPQ = 24;          // pulses (ticks) per quarter note
 static constexpr int kTicksPerStep = 6;  // 24 PPQ / 4 steps per beat = 6 ticks per sixteenth note
-
-// -- Parameter locks (discriminated union) ------------------------------------
-
-/// Each lock type overrides a single voice config field for one step.
-struct LockRatio { float value; };
-struct LockIndex { float value; };
-struct LockFilterFreq { float value; };
-struct LockFilterRes { float value; };
-struct LockAttack { float value; };
-struct LockDecay { float value; };
-struct LockSustain { float value; };
-struct LockRelease { float value; };
-
-using ParamLock = std::variant<
-    LockRatio, LockIndex, LockFilterFreq, LockFilterRes,
-    LockAttack, LockDecay, LockSustain, LockRelease>;
 
 // -- Trigger types (discriminated union via std::variant) ---------------------
 

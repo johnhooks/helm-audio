@@ -12,7 +12,7 @@ struct Event {
     uint8_t note;
     uint8_t velocity;
     uint8_t patchIndex;
-    ParamLock lock{LockRatio{0.0f}};
+    ParamLock lock{ParamId::Ratio, 0.0f};
 };
 
 class MockListener : public SequencerListener {
@@ -102,7 +102,7 @@ TEST_CASE("Dispatch order: patch load fires before trig on the same step") {
     std::vector<Step> steps(1);
     steps[0].patchIndex = 5;
     steps[0].trig = NoteOn{60, 100};
-    steps[0].locks.push_back(LockRatio{2.0f});
+    steps[0].locks.push_back(ParamLock{ParamId::Ratio, 2.0f});
 
     Pattern pattern = makePattern(std::move(steps), 1);
     MockListener listener;
@@ -246,9 +246,9 @@ TEST_CASE("Empty pattern loops silently") {
 TEST_CASE("Multiple param locks on a single step") {
     std::vector<Step> steps(1);
     steps[0].trig = NoteOn{60, 100};
-    steps[0].locks.push_back(LockRatio{2.0f});
-    steps[0].locks.push_back(LockFilterFreq{4000.0f});
-    steps[0].locks.push_back(LockRelease{0.5f});
+    steps[0].locks.push_back(ParamLock{ParamId::Ratio, 2.0f});
+    steps[0].locks.push_back(ParamLock{ParamId::FilterFreq, 4000.0f});
+    steps[0].locks.push_back(ParamLock{ParamId::Release, 0.5f});
 
     Pattern pattern = makePattern(std::move(steps), 1);
     MockListener listener;
@@ -265,9 +265,12 @@ TEST_CASE("Multiple param locks on a single step") {
     CHECK(listener.events[3].type == Event::kParamLock);
 
     // Verify lock values.
-    CHECK(std::get<LockRatio>(listener.events[1].lock).value == 2.0f);
-    CHECK(std::get<LockFilterFreq>(listener.events[2].lock).value == 4000.0f);
-    CHECK(std::get<LockRelease>(listener.events[3].lock).value == 0.5f);
+    CHECK(listener.events[1].lock.param == ParamId::Ratio);
+    CHECK(listener.events[1].lock.value == 2.0f);
+    CHECK(listener.events[2].lock.param == ParamId::FilterFreq);
+    CHECK(listener.events[2].lock.value == 4000.0f);
+    CHECK(listener.events[3].lock.param == ParamId::Release);
+    CHECK(listener.events[3].lock.value == 0.5f);
 }
 
 TEST_CASE("Micro-timing: positive offset fires late, negative fires early") {

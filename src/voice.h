@@ -1,5 +1,7 @@
 #pragma once
 
+#include "param.h"
+
 #include "daisysp.h"
 #include <cstdint>
 
@@ -65,6 +67,13 @@ struct Patch {
     float filterFreq = 8000.0f;
     float filterRes = 0.0f;
 
+    // Effect bus send levels
+    float sends[4] = {};
+
+    // LFO configurations and routing tables
+    LfoConfig lfos[kMaxLfosPerVoice] = {};
+    LfoRouting lfoRoutings[kMaxLfosPerVoice] = {};
+
     // Amplitude envelope — gates the final output volume.
     // Separate from operator envelopes: this controls loudness,
     // operator envelopes control timbre.
@@ -86,6 +95,7 @@ class Voice {
 public:
     void Init(float sampleRate);
     void Configure(const Patch& config);
+    void SetParam(ParamId id, float value);
     float Process();
     void NoteOn(uint8_t note, uint8_t velocity);
     void NoteOff();

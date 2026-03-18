@@ -27,6 +27,49 @@ void Voice::Init(float sampleRate) {
     savedRelease_ = 0.3f;
 }
 
+void Voice::SetParam(ParamId id, float value) {
+    switch (id) {
+    case ParamId::FilterFreq:
+        filter_.SetFreq(value);
+        break;
+    case ParamId::FilterRes:
+        filter_.SetRes(value);
+        break;
+    case ParamId::Index:
+        index_ = value;
+        break;
+    case ParamId::Pitch: {
+        float offset = value;
+        carrier_.osc.SetFreq(freq_ * carrier_.ratio + carrier_.detune + offset);
+        modulator_.osc.SetFreq(freq_ * modulator_.ratio + modulator_.detune + offset);
+        break;
+    }
+    case ParamId::Ratio:
+        modulator_.ratio = value;
+        modulator_.osc.SetFreq(freq_ * modulator_.ratio + modulator_.detune);
+        break;
+    case ParamId::Attack:
+        env_.SetAttackTime(value);
+        break;
+    case ParamId::Decay:
+        env_.SetDecayTime(value);
+        break;
+    case ParamId::Sustain:
+        env_.SetSustainLevel(value);
+        break;
+    case ParamId::Release:
+        env_.SetReleaseTime(value);
+        savedRelease_ = value;
+        break;
+    case ParamId::Send0:
+    case ParamId::Send1:
+    case ParamId::Send2:
+    case ParamId::Send3:
+        // Send levels will be read by the synth, not applied to DSP here
+        break;
+    }
+}
+
 void Voice::Configure(const Patch& config) {
     ConfigureOperator(carrier_, config.ops[0]);
     ConfigureOperator(modulator_, config.ops[1]);

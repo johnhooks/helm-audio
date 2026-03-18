@@ -13,6 +13,7 @@ add_subdirectory(DaisySP)
 add_library(helm_audio STATIC
     src/voice.cpp
     src/sequencer.cpp
+    src/modulation.cpp
 )
 target_include_directories(helm_audio PUBLIC src/)
 target_link_libraries(helm_audio PUBLIC DaisySP)
@@ -35,6 +36,7 @@ if(NOT EMSCRIPTEN)
     add_executable(tests
         tests/test_voice.cpp
         tests/test_sequencer.cpp
+        tests/test_modulation.cpp
     )
     target_link_libraries(tests PRIVATE helm_audio doctest::doctest)
     target_include_directories(tests PRIVATE ${audiofile_SOURCE_DIR})
