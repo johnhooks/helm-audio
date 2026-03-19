@@ -1,4 +1,6 @@
 #include "AudioFile.h"
+#include "effect.h"
+#include "effect_bus.h"
 #include "modulation.h"
 #include "voice.h"
 #include <array>
@@ -11,11 +13,6 @@ using namespace helm_audio;
 
 static constexpr float kSampleRate = 48000.0f;
 static constexpr int kNumVoices = 16;
-
-// Delay buffer: 1 second max at 48kHz
-static constexpr size_t kMaxDelay = 48000;
-static constexpr float kDelayFeedback = 0.45f;
-static constexpr float kDelayMix = 0.35f; // wet/dry
 
 int main(int argc, char* argv[]) {
     std::string outputPath = "tmp/output.wav";
@@ -46,6 +43,10 @@ int main(int argc, char* argv[]) {
         cfg.decay = 0.5f;
         cfg.sustain = 0.4f;
         cfg.release = 2.0f + i * 0.2f; // long releases
+
+        // Ambient voices send to both delay (bus 0) and reverb (bus 1)
+        cfg.sends[0] = 0.4f; // delay
+        cfg.sends[1] = 0.5f; // reverb
 
         // LFO 0: slow filter sweep — each voice at a slightly different rate
         // so they drift against each other (0.07–0.21 Hz)
@@ -79,6 +80,10 @@ int main(int argc, char* argv[]) {
         cfg.sustain = 0.6f;
         cfg.release = 0.8f + i * 0.1f;
 
+        // Chord voices send mostly to delay, less to reverb
+        cfg.sends[0] = 0.5f; // delay
+        cfg.sends[1] = 0.2f; // reverb
+
         // LFO 0: index shimmer — faster than ambient, slightly different per voice
         cfg.lfos[0].rate = 0.5f + i * 0.15f;
         cfg.lfos[0].waveform = LfoWaveform::Sine;
@@ -95,6 +100,27 @@ int main(int argc, char* argv[]) {
         mods[8 + i].LoadPatch(cfg);
     }
 
+    // --- Effect buses ---
+    // Bus 0: ping-pong delay (replaces the manual ping-pong)
+    DelayEffect delay;
+    delay.Init(kSampleRate);
+    float bpm = 90.0f;
+    float beatSec = 60.0f / bpm;
+    delay.SetTime(beatSec);
+    delay.SetFeedback(0.45f);
+    delay.SetMix(0.35f);
+
+    // Bus 1: reverb (adds depth to the ambient drones)
+    ReverbEffect reverb;
+    reverb.Init(kSampleRate);
+    reverb.SetFeedback(0.85f);
+    reverb.SetLpFreq(8000.0f);
+
+    EffectBusPool buses;
+    buses.Init(kSampleRate);
+    buses.GetBus(0).SetSlot(0, &delay);
+    buses.GetBus(1).SetSlot(0, &reverb);
+
     // --- Mix filter: slow sweeping bandpass ---
     daisysp::Svf mixFilter;
     mixFilter.Init(kSampleRate);
@@ -107,34 +133,12 @@ int main(int argc, char* argv[]) {
     filterLfo.SetFreq(0.15f); // very slow sweep
     filterLfo.SetAmp(1.0f);
 
-    // --- Ping-pong delay ---
-    // Left: dotted eighth at 90 BPM = 3/16 of a beat = 3/16 * (60/90) = 0.125s
-    // Right: quarter note = 60/90 = 0.667s
-    // These times give a nice rhythmic spread
-    daisysp::DelayLine<float, kMaxDelay> delayL;
-    daisysp::DelayLine<float, kMaxDelay> delayR;
-    delayL.Init();
-    delayR.Init();
-
-    float bpm = 90.0f;
-    float beatSec = 60.0f / bpm;
-    delayL.SetDelay(beatSec * 0.75f * kSampleRate);  // dotted eighth
-    delayR.SetDelay(beatSec * 1.0f * kSampleRate);    // quarter note
-
-    // Filter in the feedback path to darken repeats
-    daisysp::OnePole delayFilterL;
-    daisysp::OnePole delayFilterR;
-    delayFilterL.Init();
-    delayFilterR.Init();
-    delayFilterL.SetFrequency(0.3f); // normalized, ~low pass
-    delayFilterR.SetFrequency(0.3f);
-
     // --- Timeline ---
     // 0s:  ambient voices start (staggered by attack times)
     // 3s:  chord enters
     // 7s:  chord releases
     // 9s:  ambient releases
-    // 14s: end (extra tail for delay repeats)
+    // 14s: end (extra tail for delay/reverb tails)
     float duration = 14.0f;
     int numSamples = static_cast<int>(duration * kSampleRate);
 
@@ -192,29 +196,34 @@ int main(int argc, char* argv[]) {
             voices[v].SetParam(ParamId::Index, mods[v].GetResolved(ParamId::Index));
         }
 
-        // --- Render all voices ---
-        float mix = 0.0f;
-        for (auto& voice : voices) {
-            mix += voice.Process();
+        // --- Render voices and route to buses ---
+        buses.ClearInputs();
+        float dry = 0.0f;
+
+        for (int v = 0; v < kNumVoices; v++) {
+            float sample = voices[v].Process() * (1.0f / kNumVoices);
+            dry += sample;
+
+            // Route to effect buses via send levels
+            float send0 = mods[v].GetResolved(ParamId::Send0);
+            float send1 = mods[v].GetResolved(ParamId::Send1);
+            if (send0 > 0.0f)
+                buses.RouteVoice(0, sample, send0);
+            if (send1 > 0.0f)
+                buses.RouteVoice(1, sample, send1);
         }
-        mix *= (1.0f / kNumVoices);
 
-        mixFilter.Process(mix);
-        float dry = mixFilter.Low() * 0.6f + mixFilter.Band() * 0.4f;
+        // --- Mix filter ---
+        mixFilter.Process(dry);
+        dry = mixFilter.Low() * 0.6f + mixFilter.Band() * 0.4f;
 
-        // --- Ping-pong delay ---
-        float wetL = delayL.Read();
-        float wetR = delayR.Read();
+        // --- Process effect buses ---
+        buses.ProcessAll();
+        StereoSample wet = buses.MixReturns();
 
-        // Cross-feed: left feedback goes to right, right to left
-        float fbL = delayFilterL.Process(wetL * kDelayFeedback);
-        float fbR = delayFilterR.Process(wetR * kDelayFeedback);
-
-        delayL.Write(dry + fbR);
-        delayR.Write(dry + fbL);
-
-        af.samples[0][i] = dry + wetL * kDelayMix;
-        af.samples[1][i] = dry + wetR * kDelayMix;
+        // --- Master output: dry (mono→stereo) + bus returns (stereo) ---
+        af.samples[0][i] = dry + wet.left;
+        af.samples[1][i] = dry + wet.right;
     }
 
     auto end = std::chrono::high_resolution_clock::now();

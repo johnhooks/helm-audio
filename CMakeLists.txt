@@ -8,6 +8,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- Dependencies ---
 add_subdirectory(DaisySP)
+add_subdirectory(DaisySP/DaisySP-LGPL)
+# DaisySP-LGPL's relative include paths (../../Source) don't resolve correctly
+# from this project layout — add the DaisySP Source and Utility paths it needs.
+target_include_directories(DaisySP_LGPL PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/DaisySP/Source
+    ${CMAKE_CURRENT_SOURCE_DIR}/DaisySP/Source/Utility
+)
 
 # --- Engine library ---
 add_library(helm_audio STATIC
@@ -16,7 +23,7 @@ add_library(helm_audio STATIC
     src/modulation.cpp
 )
 target_include_directories(helm_audio PUBLIC src/)
-target_link_libraries(helm_audio PUBLIC DaisySP)
+target_link_libraries(helm_audio PUBLIC DaisySP DaisySP_LGPL)
 
 # --- Native-only targets ---
 if(NOT EMSCRIPTEN)
@@ -37,6 +44,7 @@ if(NOT EMSCRIPTEN)
         tests/test_voice.cpp
         tests/test_sequencer.cpp
         tests/test_modulation.cpp
+        tests/test_effects.cpp
     )
     target_link_libraries(tests PRIVATE helm_audio doctest::doctest)
     target_include_directories(tests PRIVATE ${audiofile_SOURCE_DIR})
