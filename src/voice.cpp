@@ -61,11 +61,7 @@ void Voice::SetParam(ParamId id, float value) {
         env_.SetReleaseTime(value);
         savedRelease_ = value;
         break;
-    case ParamId::Send0:
-    case ParamId::Send1:
-    case ParamId::Send2:
-    case ParamId::Send3:
-        // Send levels will be read by the synth, not applied to DSP here
+    default:
         break;
     }
 }

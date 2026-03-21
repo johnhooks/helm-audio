@@ -21,6 +21,7 @@ add_library(helm_audio STATIC
     src/voice.cpp
     src/sequencer.cpp
     src/modulation.cpp
+    src/synth.cpp
 )
 target_include_directories(helm_audio PUBLIC src/)
 target_link_libraries(helm_audio PUBLIC DaisySP DaisySP_LGPL)
@@ -45,6 +46,7 @@ if(NOT EMSCRIPTEN)
         tests/test_sequencer.cpp
         tests/test_modulation.cpp
         tests/test_effects.cpp
+        tests/test_synth.cpp
     )
     target_link_libraries(tests PRIVATE helm_audio doctest::doctest)
     target_include_directories(tests PRIVATE ${audiofile_SOURCE_DIR})
