@@ -1,0 +1,16 @@
+{
+	"name": "@helm-audio/local",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build"
+	},
+	"dependencies": {
+		"@helm-audio/worklet": "workspace:*"
+	},
+	"devDependencies": {
+		"vite": "^6.0.0"
+	}
+}

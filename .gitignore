@@ -4,6 +4,13 @@ dist
 node_modules
 bun.lock
 
+packages/*/dist/
+packages/worklet/wasm/
+packages/local/public/processor.js
+
+*.tsbuildinfo
+.rollup.cache
+
 .idea
 docs/plans/.wip
 

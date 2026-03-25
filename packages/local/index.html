@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>helm-audio dev</title>
+		<style>
+			body {
+				font-family: monospace;
+				background: #1a1a1a;
+				color: #e0e0e0;
+				padding: 2rem;
+			}
+			button {
+				font-family: monospace;
+				font-size: 14px;
+				padding: 0.5rem 1rem;
+				margin: 0.25rem;
+				background: #333;
+				color: #e0e0e0;
+				border: 1px solid #555;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #444;
+			}
+			button:disabled {
+				opacity: 0.4;
+				cursor: default;
+			}
+			button.active {
+				background: #2a5a2a;
+				border-color: #4a8a4a;
+			}
+			#status {
+				margin-bottom: 1rem;
+				color: #888;
+			}
+			.section {
+				margin: 1rem 0;
+			}
+			h2 {
+				font-size: 14px;
+				margin: 0.5rem 0;
+				color: #aaa;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="status">Click "Start" to initialize the audio engine.</div>
+
+		<div class="section">
+			<h2>Engine</h2>
+			<button id="start">Start</button>
+		</div>
+
+		<div class="section">
+			<h2>Notes (track 0)</h2>
+			<button class="note" data-note="48">C3</button>
+			<button class="note" data-note="51">Eb3</button>
+			<button class="note" data-note="55">G3</button>
+			<button class="note" data-note="60">C4</button>
+			<button class="note" data-note="63">Eb4</button>
+			<button class="note" data-note="67">G4</button>
+			<button class="note" data-note="72">C5</button>
+		</div>
+
+		<div class="section">
+			<h2>Control</h2>
+			<button id="release">Release</button>
+		</div>
+
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

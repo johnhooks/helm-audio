@@ -15,6 +15,12 @@ target_include_directories(DaisySP_LGPL PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/DaisySP/Source
     ${CMAKE_CURRENT_SOURCE_DIR}/DaisySP/Source/Utility
 )
+# DaisySP-LGPL uses size_t without including <cstddef>. Emscripten's libc++
+# doesn't leak size_t into the global namespace, so force-include the header.
+if(EMSCRIPTEN)
+    target_compile_options(DaisySP_LGPL PRIVATE -include cstddef)
+    target_compile_options(DaisySP PRIVATE -include cstddef)
+endif()
 
 # --- Engine library ---
 add_library(helm_audio STATIC
@@ -25,6 +31,27 @@ add_library(helm_audio STATIC
 )
 target_include_directories(helm_audio PUBLIC src/)
 target_link_libraries(helm_audio PUBLIC DaisySP DaisySP_LGPL)
+
+# --- WASM target ---
+if(EMSCRIPTEN)
+    add_executable(helm_engine src/worklet_bridge.cpp)
+    target_link_libraries(helm_engine PRIVATE helm_audio)
+    target_link_options(helm_engine PRIVATE
+        --bind
+        -sWASM=1
+        -sSINGLE_FILE=1
+        -sALLOW_MEMORY_GROWTH=1
+        -sENVIRONMENT=worker
+        -sEXPORT_ES6=1
+        -sMODULARIZE=1
+        -sNO_FILESYSTEM=1
+        -sINITIAL_MEMORY=4194304
+        -sEXPORTED_RUNTIME_METHODS=['HEAPF32']
+        -sEXPORTED_FUNCTIONS=['_malloc','_free']
+        --no-entry
+    )
+    set_target_properties(helm_engine PROPERTIES SUFFIX ".mjs")
+endif()
 
 # --- Native-only targets ---
 if(NOT EMSCRIPTEN)

@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"lib": ["ES2024"],
+		"target": "ES2024",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"declaration": true,
+		"declarationMap": true,
+		"isolatedModules": true,
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
+		"emitDeclarationOnly": true
+	}
+}

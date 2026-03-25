@@ -1,0 +1,10 @@
+dist
+wasm
+build
+cmake-build-debug
+DaisySP
+tmp
+docs
+.claude
+*.md
+CMakePresets.json
