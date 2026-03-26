@@ -1,4 +1,5 @@
 #include <emscripten/bind.h>
+#include "protocol_decoder.h"
 #include "synth.h"
 
 using namespace helm_audio;
@@ -34,48 +35,15 @@ public:
         return reinterpret_cast<uintptr_t>(right_);
     }
 
-    // Transport
-    void setTempo(float bpm) { synth_.SetTempo(bpm); }
-    void play() { synth_.Play(); }
-    void stop() { synth_.Stop(); }
-
-    // Direct voice control
-    void noteOn(int track, int note, int velocity) {
-        synth_.onNoteOn(track, note, velocity);
-    }
-
-    void noteOff(int track) {
-        synth_.onNoteOff(track);
-    }
-
-    // Simplified patch config — flat args, no struct binding needed
-    void configurePatch(int patchIndex, float index, float filterFreq,
-                        float filterRes, float attack, float decay,
-                        float sustain, float release) {
-        Patch p;
-        p.index = index;
-        p.filterFreq = filterFreq;
-        p.filterRes = filterRes;
-        p.attack = attack;
-        p.decay = decay;
-        p.sustain = sustain;
-        p.release = release;
-
-        if (patchIndex >= static_cast<int>(patchBank_.size())) {
-            patchBank_.resize(patchIndex + 1);
-        }
-        patchBank_[patchIndex] = p;
-        synth_.LoadPatchBank(patchBank_);
-    }
-
-    void loadPatch(int track, int patchIndex) {
-        synth_.onLoadPatch(track, patchIndex);
+    void receiveMessage(uintptr_t dataPtr, int length) {
+        const auto* data = reinterpret_cast<const uint8_t*>(dataPtr);
+        decoder_.Decode(synth_, data, static_cast<size_t>(length));
     }
 
 private:
     Synth synth_;
+    ProtocolDecoder decoder_;
     Pattern pattern_;
-    std::vector<Patch> patchBank_;
     float* left_ = nullptr;
     float* right_ = nullptr;
 };
@@ -87,11 +55,5 @@ EMSCRIPTEN_BINDINGS(helm_audio) {
         .function("destroy", &SynthBinding::destroy)
         .function("process", &SynthBinding::process)
         .function("getRight", &SynthBinding::getRight)
-        .function("setTempo", &SynthBinding::setTempo)
-        .function("play", &SynthBinding::play)
-        .function("stop", &SynthBinding::stop)
-        .function("noteOn", &SynthBinding::noteOn)
-        .function("noteOff", &SynthBinding::noteOff)
-        .function("configurePatch", &SynthBinding::configurePatch)
-        .function("loadPatch", &SynthBinding::loadPatch);
+        .function("receiveMessage", &SynthBinding::receiveMessage);
 }

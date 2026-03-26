@@ -26,6 +26,7 @@ render: native
 .PHONY: wasm
 wasm:
 	source $(EMSDK_ENV) && cmake --preset wasm && cmake --build build/wasm
+	cp packages/worklet/helm_engine.d.mts build/wasm/helm_engine.d.mts
 
 # --- JS/TS ---
 

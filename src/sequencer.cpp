@@ -14,6 +14,14 @@ void Sequencer::Init(SequencerListener* listener, Pattern* pattern) {
     trackStates_.assign(pattern->tracks.size(), TrackState{});
 }
 
+void Sequencer::Reset() {
+    tick_ = 0;
+    for (auto& state : trackStates_) {
+        state.cursor = 0;
+        state.loopCount = 0;
+    }
+}
+
 void Sequencer::SetPendingPattern(Pattern* pattern) {
     assert(pattern != nullptr);
     pendingPattern_ = pattern;

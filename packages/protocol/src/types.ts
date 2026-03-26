@@ -1,6 +1,7 @@
 // --- Message types -----------------------------------------------------------
 
 export enum MessageType {
+	Init = 0x00,
 	PatchBank = 0x01,
 	Pattern = 0x02,
 	BusConfig = 0x03,
@@ -158,11 +159,7 @@ export interface ChorusConfig {
 	delay: number;
 }
 
-export type EffectConfig =
-	| DelayConfig
-	| ReverbConfig
-	| OverdriveConfig
-	| ChorusConfig;
+export type EffectConfig = DelayConfig | ReverbConfig | OverdriveConfig | ChorusConfig;
 
 export interface BusConfig {
 	slots: EffectConfig[];

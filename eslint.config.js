@@ -1,7 +1,7 @@
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["**/dist", "**/wasm", "**/build", "DaisySP", "tmp"] },
+	{ ignores: ["**/dist", "**/wasm", "**/build", "DaisySP", "tmp", "**/*.d.mts", "**/public"] },
 	tseslint.configs.strictTypeChecked,
 	{
 		languageOptions: {
@@ -11,6 +11,8 @@ export default tseslint.config(
 						"eslint.config.js",
 						"vitest.config.ts",
 						"packages/*/tsup.config.ts",
+						"packages/*/vite.config.ts",
+						"packages/*/rollup.config.js",
 					],
 					defaultProject: "tsconfig.base.json",
 				},

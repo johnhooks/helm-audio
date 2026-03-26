@@ -1,3 +1,5 @@
+import { encodeInit } from "@helm-audio/protocol";
+
 export interface HelmNodeOptions {
 	processorUrl: string;
 	numTracks?: number;
@@ -15,18 +17,21 @@ export async function createHelmNode(
 		outputChannelCount: [2],
 	});
 
-	node.port.postMessage({
-		type: "init",
-		sampleRate: context.sampleRate,
-		numTracks: options.numTracks ?? 8,
-	});
+	const initBuf = encodeInit(context.sampleRate, options.numTracks ?? 8);
+	node.port.postMessage(initBuf, [initBuf]);
 
 	await new Promise<void>((resolve, reject) => {
 		node.port.onmessage = (e) => {
-			if (e.data.type === "ready") resolve();
-			if (e.data.type === "error") reject(new Error(e.data.message));
+			const msg = e.data as { type: string; message?: string };
+			if (msg.type === "ready") resolve();
+			if (msg.type === "error") reject(new Error(msg.message ?? "unknown error"));
 		};
 	});
 
 	return node;
+}
+
+/** Send a binary protocol message to the engine. Zero-copy transfer. */
+export function send(node: AudioWorkletNode, buf: ArrayBuffer): void {
+	node.port.postMessage(buf, [buf]);
 }

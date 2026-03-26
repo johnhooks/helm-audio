@@ -2,9 +2,11 @@
 
 #include "effect_bus.h"
 #include "modulation.h"
+#include "protocol_decoder.h"
 #include "sequencer.h"
 #include "voice.h"
 
+#include <memory>
 #include <vector>
 
 namespace helm_audio {
@@ -18,11 +20,16 @@ public:
     void SetTempo(float bpm);
     void Play();
     void Stop();
+    void Restart();
 
     // Configuration
     void LoadPatchBank(const std::vector<Patch>& patches);
+    void LoadPatchBank(std::vector<Patch>&& patches);
+    void LoadPattern(Pattern&& pattern);
     void QueuePattern(Pattern* pattern);
+    void QueuePattern(Pattern&& pattern);
     void ConfigureBus(int busIndex, int slotIndex, Effect* effect);
+    void ConfigureBusFromDecoder(int busIndex, const DecodedBusConfig& config);
 
     int GetNumTracks() const { return numTracks_; }
     float GetTempo() const { return bpm_; }
@@ -48,6 +55,16 @@ private:
     std::vector<Patch> patchBank_;
     Sequencer sequencer_;
     EffectBusPool buses_;
+
+    // Owned pattern storage for the protocol decoder path.
+    // The sequencer holds raw Pattern* — these keep the data alive.
+    std::unique_ptr<Pattern> ownedPattern_;
+    std::unique_ptr<Pattern> ownedPendingPattern_;
+
+    // Owned effect instances for the decoder path.
+    std::unique_ptr<Effect> ownedEffects_[kMaxEffectBuses][kMaxEffectsPerBus];
+
+    std::unique_ptr<Effect> CreateEffect(const DecodedEffectSlot& slot);
 };
 
 } // namespace helm_audio

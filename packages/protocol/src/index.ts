@@ -1,4 +1,5 @@
 export {
+	encodeInit,
 	encodePatchBank,
 	encodePattern,
 	encodeBusConfig,

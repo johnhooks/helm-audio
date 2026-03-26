@@ -80,8 +80,10 @@ public:
     void Init(SequencerListener* listener, Pattern* pattern);
     void SetPendingPattern(Pattern* pattern);
     void Advance(int numTicks);
+    void Reset();
 
     int GetTick() const { return tick_; }
+    Pattern* GetPattern() const { return pattern_; }
 
 private:
     void DispatchStep(uint8_t trackIndex, const Step& step);

@@ -28,6 +28,7 @@ add_library(helm_audio STATIC
     src/sequencer.cpp
     src/modulation.cpp
     src/synth.cpp
+    src/protocol_decoder.cpp
 )
 target_include_directories(helm_audio PUBLIC src/)
 target_link_libraries(helm_audio PUBLIC DaisySP DaisySP_LGPL)
@@ -46,7 +47,7 @@ if(EMSCRIPTEN)
         -sMODULARIZE=1
         -sNO_FILESYSTEM=1
         -sINITIAL_MEMORY=4194304
-        -sEXPORTED_RUNTIME_METHODS=['HEAPF32']
+        -sEXPORTED_RUNTIME_METHODS=['HEAPF32','HEAPU8']
         -sEXPORTED_FUNCTIONS=['_malloc','_free']
         --no-entry
     )
@@ -74,6 +75,7 @@ if(NOT EMSCRIPTEN)
         tests/test_modulation.cpp
         tests/test_effects.cpp
         tests/test_synth.cpp
+        tests/test_protocol_decoder.cpp
     )
     target_link_libraries(tests PRIVATE helm_audio doctest::doctest)
     target_include_directories(tests PRIVATE ${audiofile_SOURCE_DIR})

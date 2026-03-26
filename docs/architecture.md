@@ -11,7 +11,7 @@ JS (brain)                              C++ engine (clock)
     current one plays
 ```
 
-The WASM boundary is one data path: pattern in, audio out.
+The WASM boundary is one data path: binary messages in, audio out. All control messages (patches, patterns, transport, effects, triggers) are binary-encoded ArrayBuffers transferred zero-copy via MessagePort. The C++ `ProtocolDecoder` reads the type byte and dispatches to the appropriate Synth method. Init is the only message handled in JS (it bootstraps the WASM engine).
 
 ## Components
 
@@ -34,20 +34,24 @@ The synth is the integration point — it wires the sequencer to the voices. It 
 
 ### Voice
 
-An FM voice built from DaisySP modules. Implements an interface that the synth talks to — the voice doesn't know about tracks or patterns.
+A 2-operator FM voice built from DaisySP modules. Implements an interface that the synth talks to — the voice doesn't know about tracks or patterns.
 
 ```
 Voice
-├── FM2 (carrier + modulator) ──┐
-├── FM2 (carrier + modulator) ──┼── mix ── Filter ── ADSR ── out
-├── FM2 (carrier + modulator) ──┘
-│        ↑        ↑
-├── LFO → freq modulation
-├── LFO → index modulation
-└── LFO → filter cutoff modulation
+├── Modulator (sine osc + ADSR + self-feedback)
+│     ↓ phase modulation (scaled by index)
+├── Carrier (sine osc + ADSR + self-feedback)
+│     ↓
+├── SVF filter (low/high/band/notch)
+│     ↓
+├── Amplitude ADSR
+│     ↓
+└── output
 ```
 
-Each voice has multiple FM2 operators mixed together, then run through a single filter and amplitude envelope. LFOs modulate FM parameters for timbral movement. The filter is applied once per voice (post-mix).
+The modulator's output is added to the carrier's phase each sample — this is FM synthesis via phase modulation. The modulator's envelope shapes how the timbre evolves over the note (fast decay = bright attack that mellows, sustained = complex tone throughout). Either operator can have self-feedback, which adds harmonics to its own waveform.
+
+Three envelopes per voice: modulator (timbre depth), carrier (timbre amplitude), and amplitude (overall volume). LFOs modulate parameters at per-sample resolution — filter cutoff, FM index, pitch, and effect sends.
 
 ### Voice lifecycle
 

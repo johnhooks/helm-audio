@@ -70,6 +70,14 @@ function writeEffect(b: Builder, effect: EffectConfig): void {
 
 // --- Encoders ----------------------------------------------------------------
 
+export function encodeInit(sampleRate: number, numTracks: number): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, MessageType.Init);
+	b.write(f32, sampleRate);
+	b.write(u8, numTracks);
+	return b.toTransferable();
+}
+
 export function encodePatchBank(patches: Patch[]): ArrayBuffer {
 	const b = new Builder();
 	b.write(u8, MessageType.PatchBank);

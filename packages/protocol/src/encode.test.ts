@@ -16,12 +16,7 @@ import {
 	TransportCommand,
 	TrigType,
 } from "./types.ts";
-import type {
-	BusSetup,
-	Patch,
-	PatternData,
-	TriggerMessage,
-} from "./types.ts";
+import type { BusSetup, Patch, PatternData, TriggerMessage } from "./types.ts";
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -332,9 +327,7 @@ describe("encodeBusConfig", () => {
 	it("encodes all 4 buses", () => {
 		const buses: BusSetup = [
 			{
-				slots: [
-					{ type: EffectType.Delay, time: 0.5, feedback: 0.45, mix: 0.35 },
-				],
+				slots: [{ type: EffectType.Delay, time: 0.5, feedback: 0.45, mix: 0.35 }],
 			},
 			{
 				slots: [{ type: EffectType.Reverb, feedback: 0.85, lpFreq: 10000.0 }],

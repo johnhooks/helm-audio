@@ -38,8 +38,35 @@ void Synth::Stop() {
     playing_ = false;
 }
 
+void Synth::Restart() {
+    sequencer_.Reset();
+    tickAccum_ = 0.0f;
+    playing_ = true;
+}
+
 void Synth::LoadPatchBank(const std::vector<Patch>& patches) {
     patchBank_ = patches;
+}
+
+void Synth::LoadPatchBank(std::vector<Patch>&& patches) {
+    patchBank_ = std::move(patches);
+}
+
+void Synth::LoadPattern(Pattern&& pattern) {
+    ownedPattern_ = std::make_unique<Pattern>(std::move(pattern));
+    int newTracks = static_cast<int>(ownedPattern_->tracks.size());
+
+    if (newTracks != numTracks_) {
+        numTracks_ = newTracks;
+        voices_.resize(numTracks_);
+        mods_.resize(numTracks_);
+        for (int i = 0; i < numTracks_; i++) {
+            voices_[i].Init(sampleRate_);
+            mods_[i].Init(sampleRate_);
+        }
+    }
+
+    sequencer_.Init(this, ownedPattern_.get());
 }
 
 void Synth::QueuePattern(Pattern* pattern) {
@@ -50,6 +77,70 @@ void Synth::QueuePattern(Pattern* pattern) {
         throw std::invalid_argument("Synth::QueuePattern: pattern track count does not match synth");
     }
     sequencer_.SetPendingPattern(pattern);
+}
+
+void Synth::QueuePattern(Pattern&& pattern) {
+    if (static_cast<int>(pattern.tracks.size()) != numTracks_) {
+        throw std::invalid_argument("Synth::QueuePattern: pattern track count does not match synth");
+    }
+    ownedPendingPattern_ = std::make_unique<Pattern>(std::move(pattern));
+    sequencer_.SetPendingPattern(ownedPendingPattern_.get());
+}
+
+void Synth::ConfigureBusFromDecoder(int busIndex, const DecodedBusConfig& config) {
+    if (busIndex < 0 || busIndex >= kMaxEffectBuses) return;
+
+    auto& bus = buses_.GetBus(busIndex);
+    bus.ClearSlots();
+
+    for (int s = 0; s < config.slotCount && s < kMaxEffectsPerBus; s++) {
+        auto effect = CreateEffect(config.slots[s]);
+        if (effect) {
+            effect->Init(sampleRate_);
+            bus.SetSlot(s, effect.get());
+            ownedEffects_[busIndex][s] = std::move(effect);
+        }
+    }
+    // Clear any remaining owned effects from previous configuration
+    for (int s = config.slotCount; s < kMaxEffectsPerBus; s++) {
+        ownedEffects_[busIndex][s].reset();
+    }
+}
+
+std::unique_ptr<Effect> Synth::CreateEffect(const DecodedEffectSlot& slot) {
+    switch (slot.type) {
+    case DecodedEffectType::Delay: {
+        auto fx = std::make_unique<DelayEffect>();
+        fx->Init(sampleRate_);
+        fx->SetTime(slot.params[0]);
+        fx->SetFeedback(slot.params[1]);
+        fx->SetMix(slot.params[2]);
+        return fx;
+    }
+    case DecodedEffectType::Reverb: {
+        auto fx = std::make_unique<ReverbEffect>();
+        fx->Init(sampleRate_);
+        fx->SetFeedback(slot.params[0]);
+        fx->SetLpFreq(slot.params[1]);
+        return fx;
+    }
+    case DecodedEffectType::Overdrive: {
+        auto fx = std::make_unique<OverdriveEffect>();
+        fx->Init(sampleRate_);
+        fx->SetDrive(slot.params[0]);
+        return fx;
+    }
+    case DecodedEffectType::Chorus: {
+        auto fx = std::make_unique<ChorusEffect>();
+        fx->Init(sampleRate_);
+        fx->SetRate(slot.params[0]);
+        fx->SetDepth(slot.params[1]);
+        fx->SetFeedback(slot.params[2]);
+        fx->SetDelay(slot.params[3]);
+        return fx;
+    }
+    }
+    return nullptr;
 }
 
 void Synth::ConfigureBus(int busIndex, int slotIndex, Effect* effect) {
@@ -70,6 +161,12 @@ void Synth::Process(float* left, float* right, size_t frames) {
                 sequencer_.Advance(1);
                 tickAccum_ -= 1.0f;
             }
+        }
+
+        // Detect if the sequencer swapped in a pending pattern
+        if (ownedPendingPattern_ &&
+            sequencer_.GetPattern() == ownedPendingPattern_.get()) {
+            ownedPattern_ = std::move(ownedPendingPattern_);
         }
 
         // Tick modulation and apply resolved params
