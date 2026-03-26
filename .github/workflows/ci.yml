@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  native-test:
+    name: C++ Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Ninja
+        run: sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: cmake --preset native-debug
+
+      - name: Build
+        run: cmake --build build/native-debug
+
+      - name: Test
+        run: ctest --test-dir build/native-debug --output-on-failure
+
+  wasm-build:
+    name: WASM Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Ninja
+        run: sudo apt-get install -y ninja-build
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+
+      - name: Configure
+        run: cmake --preset wasm
+
+      - name: Build
+        run: cmake --build build/wasm
+
+      - name: Copy type declarations
+        run: cp packages/worklet/helm_engine.d.mts build/wasm/helm_engine.d.mts
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-build
+          path: build/wasm/helm_engine.*
+          retention-days: 1
+
+  ts-check:
+    name: TypeScript
+    needs: wasm-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-build
+          path: build/wasm
+
+      - name: Build worklet bundle
+        run: cd packages/worklet && bun run build
+
+      - name: Type check, lint, format
+        run: bun run check

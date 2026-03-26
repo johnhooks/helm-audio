@@ -27,7 +27,7 @@ void VoiceModState::Init(float sampleRate) {
         lfos_[i].SetWaveform(Oscillator::WAVE_SIN);
         lfos_[i].SetAmp(1.0f);
         lfos_[i].SetFreq(1.0f);
-        routings_[i] = {};
+        routings_[i] = LfoRouting{};
     }
 }
 
