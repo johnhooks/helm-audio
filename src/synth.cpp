@@ -38,6 +38,10 @@ void Synth::Stop() {
     playing_ = false;
 }
 
+int Synth::GetStep() const {
+    return sequencer_.GetTick() / kTicksPerStep;
+}
+
 void Synth::Restart() {
     sequencer_.Reset();
     tickAccum_ = 0.0f;
@@ -156,17 +160,21 @@ void Synth::Process(float* left, float* right, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
         // Advance sequencer
         if (playing_) {
+            Pattern* beforePattern = sequencer_.GetPattern();
             tickAccum_ += ticksPerSample;
             while (tickAccum_ >= 1.0f) {
                 sequencer_.Advance(1);
                 tickAccum_ -= 1.0f;
             }
-        }
 
-        // Detect if the sequencer swapped in a pending pattern
-        if (ownedPendingPattern_ &&
-            sequencer_.GetPattern() == ownedPendingPattern_.get()) {
-            ownedPattern_ = std::move(ownedPendingPattern_);
+            // Detect pattern swap (works for both owned and raw pointer paths)
+            if (sequencer_.GetPattern() != beforePattern) {
+                patternSwapCount_++;
+                // Transfer ownership if this was the owned pending pattern
+                if (ownedPendingPattern_) {
+                    ownedPattern_ = std::move(ownedPendingPattern_);
+                }
+            }
         }
 
         // Tick modulation and apply resolved params

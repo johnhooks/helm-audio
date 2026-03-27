@@ -18,6 +18,18 @@ let engine: SynthBinding | null = null;
 // MessageType.Init = 0x00
 const MSG_INIT = 0x00;
 
+// State tracking for change detection
+let lastStep = -1;
+let lastPlaying = false;
+let lastPatternSwapCount = 0;
+
+// MessageType.StateReport = 0x07
+const MSG_STATE_REPORT = 0x07;
+
+// Reusable 4-byte buffer for state reports
+const stateReportBuf = new ArrayBuffer(4);
+const stateReportView = new DataView(stateReportBuf);
+
 class HelmProcessor extends AudioWorkletProcessor {
 	constructor() {
 		super();
@@ -84,6 +96,26 @@ class HelmProcessor extends AudioWorkletProcessor {
 		const output = outputs[0];
 		if (output[0]) output[0].set(heap.subarray(leftOffset, leftOffset + 128));
 		if (output[1]) output[1].set(heap.subarray(rightOffset, rightOffset + 128));
+
+		// Post state report when something changes
+		const step = engine.getStep();
+		const playing = engine.isPlaying();
+		const swapCount = engine.getPatternSwapCount();
+
+		if (step !== lastStep || playing !== lastPlaying || swapCount !== lastPatternSwapCount) {
+			const patternSwapped = swapCount !== lastPatternSwapCount;
+			lastStep = step;
+			lastPlaying = playing;
+			lastPatternSwapCount = swapCount;
+
+			// Wire format: [type: u8] [step: u8] [playing: u8] [patternSwapped: u8]
+			stateReportView.setUint8(0, MSG_STATE_REPORT);
+			stateReportView.setUint8(1, step);
+			stateReportView.setUint8(2, playing ? 1 : 0);
+			stateReportView.setUint8(3, patternSwapped ? 1 : 0);
+			// Structured clone (not transfer) — we reuse the buffer each frame
+			this.port.postMessage(stateReportBuf.slice(0));
+		}
 
 		return true;
 	}

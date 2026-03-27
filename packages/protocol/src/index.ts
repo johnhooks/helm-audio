@@ -8,6 +8,8 @@ export {
 	encodeTrigger,
 } from "./encode.ts";
 
+export { decodeStateReport, type StateReport } from "./decode.ts";
+
 export {
 	MessageType,
 	TransportCommand,

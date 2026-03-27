@@ -49,7 +49,7 @@ struct Step {
 };
 
 /// A single track in a pattern. Each track has its own step count
-/// (polymetric — like Elektron sequencers).
+/// (polymetric like Elektron sequencers).
 struct Track {
     std::vector<Step> steps;
 };

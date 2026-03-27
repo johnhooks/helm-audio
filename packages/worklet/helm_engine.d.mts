@@ -12,6 +12,9 @@ interface SynthBinding {
 	process(): number;
 	getRight(): number;
 	receiveMessage(dataPtr: number, length: number): void;
+	getStep(): number;
+	isPlaying(): boolean;
+	getPatternSwapCount(): number;
 }
 
 declare function createHelmModule(): Promise<HelmModule>;

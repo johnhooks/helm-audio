@@ -14,15 +14,15 @@ namespace helm_audio {
 // you hear) and the other is the modulator (shapes the carrier's timbre).
 //
 // The operator's envelope controls its amplitude over time. For the modulator,
-// this means the FM depth changes as the note evolves — a fast-decaying
+// this means the FM depth changes as the note evolves, a fast-decaying
 // modulator envelope gives a bright attack that mellows to a pure sine (bells,
 // plucks). A sustained modulator keeps the timbre complex throughout (organs,
 // basses).
 
 struct OperatorPatch {
     float ratio = 1.0f;     // frequency = note frequency * ratio
-                             // integer ratios (1, 2, 3) = harmonic (musical)
-                             // non-integer ratios (1.41, 2.7) = inharmonic (metallic, bells)
+                            // integer ratios (1, 2, 3) = harmonic (musical)
+                            // non-integer ratios (1.41, 2.7) = inharmonic (metallic, bells)
     float detune = 0.0f;    // fine detune in Hz, added after ratio
     float level = 1.0f;     // output amplitude scalar
     float feedback = 0.0f;  // self-feedback amount (0 = off, 0.1-0.5 = rich, 1.0 = noisy)
@@ -52,18 +52,18 @@ struct OperatorPatch {
 // Three layers of control over modulation depth:
 //   - index: overall FM depth (param-lockable per step from the sequencer)
 //   - modulator.level: static scaling of this operator's contribution
-//   - modulator.envelope: time-varying — shapes how the timbre evolves
+//   - modulator.envelope: time-varying shapes how the timbre evolves
 
 struct Patch {
     // ops[0] = carrier (the oscillator you hear)
     // ops[1] = modulator (wobbles the carrier's phase to create harmonics)
     OperatorPatch ops[2];
 
-    // FM index — overall modulation depth. Higher = more harmonics.
+    // FM index, overall modulation depth. Higher = more harmonics.
     // 0 = pure sine (no modulation), ~1-3 = musical range, 5+ = aggressive
     float index = 1.0f;
 
-    // Filter (lowpass) — shapes the final spectrum after FM
+    // Filter (lowpass) shapes the final spectrum after FM
     float filterFreq = 8000.0f;
     float filterRes = 0.0f;
 
@@ -74,7 +74,7 @@ struct Patch {
     LfoConfig lfos[kMaxLfosPerVoice] = {};
     LfoRouting lfoRoutings[kMaxLfosPerVoice] = {};
 
-    // Amplitude envelope — gates the final output volume.
+    // Amplitude envelope gates the final output volume.
     // Separate from operator envelopes: this controls loudness,
     // operator envelopes control timbre.
     float attack = 0.01f;

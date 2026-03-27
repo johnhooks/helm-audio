@@ -40,6 +40,10 @@ public:
         decoder_.Decode(synth_, data, static_cast<size_t>(length));
     }
 
+    int getStep() { return synth_.GetStep(); }
+    bool isPlaying() { return synth_.IsPlaying(); }
+    int getPatternSwapCount() { return synth_.GetPatternSwapCount(); }
+
 private:
     Synth synth_;
     ProtocolDecoder decoder_;
@@ -55,5 +59,8 @@ EMSCRIPTEN_BINDINGS(helm_audio) {
         .function("destroy", &SynthBinding::destroy)
         .function("process", &SynthBinding::process)
         .function("getRight", &SynthBinding::getRight)
-        .function("receiveMessage", &SynthBinding::receiveMessage);
+        .function("receiveMessage", &SynthBinding::receiveMessage)
+        .function("getStep", &SynthBinding::getStep)
+        .function("isPlaying", &SynthBinding::isPlaying)
+        .function("getPatternSwapCount", &SynthBinding::getPatternSwapCount);
 }

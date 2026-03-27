@@ -8,6 +8,7 @@ export enum MessageType {
 	Transport = 0x04,
 	Tempo = 0x05,
 	Trigger = 0x06,
+	StateReport = 0x07,
 }
 
 export enum TransportCommand {

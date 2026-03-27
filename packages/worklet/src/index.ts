@@ -28,10 +28,26 @@ export async function createHelmNode(
 		};
 	});
 
+	// Clear the init handler — the caller sets their own via listen()
+	node.port.onmessage = null;
+
 	return node;
 }
 
 /** Send a binary protocol message to the engine. Zero-copy transfer. */
 export function send(node: AudioWorkletNode, buf: ArrayBuffer): void {
 	node.port.postMessage(buf, [buf]);
+}
+
+/**
+ * Listen for binary protocol messages from the engine (state reports).
+ * The callback receives the raw ArrayBuffer — use decodeStateReport()
+ * from @helm-audio/protocol to parse it.
+ */
+export function listen(node: AudioWorkletNode, callback: (buf: ArrayBuffer) => void): void {
+	node.port.onmessage = (e) => {
+		if (e.data instanceof ArrayBuffer) {
+			callback(e.data);
+		}
+	};
 }
