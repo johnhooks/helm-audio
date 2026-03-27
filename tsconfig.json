@@ -3,6 +3,7 @@
 	"references": [
 		{ "path": "packages/protocol" },
 		{ "path": "packages/worklet" },
+		{ "path": "packages/display" },
 		{ "path": "packages/local" }
 	]
 }

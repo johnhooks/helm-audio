@@ -8,6 +8,7 @@
 		"build": "vite build"
 	},
 	"dependencies": {
+		"@helm-audio/display": "workspace:*",
 		"@helm-audio/protocol": "workspace:*",
 		"@helm-audio/worklet": "workspace:*"
 	},
