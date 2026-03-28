@@ -2,13 +2,48 @@
 
 How each view converts tracker state into draw commands, and what changes visually in response to user actions and playback.
 
-The layout conventions follow the M8 tracker: every page is a character grid of labeled values in two columns, the cursor highlights one value at a time, arrow keys navigate between fields, typing edits values. The right column carries mixer/send parameters. A consistent header row shows the page title, instrument number, and transport state. Navigation between pages uses modifier + direction keys.
+## Interaction principles (from M8)
 
-## Core principle: views are pure functions of state
+These patterns are learned from the M8 manual and apply across every view. They define how the tracker feels, not just how it looks.
 
-The view reads the current state and produces draw commands. When state changes, the view produces different commands. The renderer executes them. The structural visual change is instantaneous.
+### One interaction model everywhere
 
-Color-based animations (cursor pulse, active track glow, waveform color breathing) are layered on top of this — see `tracker-animations.md`.
+Direction keys move the cursor. Edit+Direction changes values. Shift+Direction changes pages. This is the entire interaction vocabulary. You learn it once on the pattern page, and it works identically on the instrument page, the mixer page, the table page, and the song page. No page has special navigation rules.
+
+### Edit is a modifier, not a mode
+
+Hold Edit (Alt on keyboard) and press a direction to change a value. You're not in "edit mode" vs "navigate mode" — you're always navigating. Edit temporarily makes the direction keys affect the value under the cursor instead of the cursor position. Release Edit and you're back to navigating. This is more fluid than a toggle.
+
+On the pattern page, note entry is the exception — typing a note key (Z, X, C, etc.) enters data directly. But value fields (velocity, patch index, FX columns) still use Edit+Direction for adjustment or hex digit entry for direct input.
+
+### Empty cells have a default
+
+Press Edit on an empty cell (`--`) and it inserts the last edited or deleted value. You never type a full value from scratch. This makes live entry fast — set one step, then stamp it across other steps with single presses.
+
+### Play works from any view
+
+You don't navigate back to the song view to start playback. Play starts from wherever you are. This means you can edit an instrument, hit Play to hear it, keep editing. The transport is global, not tied to a page.
+
+### Hex everywhere
+
+Values are hex (00-FF). Two digits, consistent width, fits in tight columns. Velocity, patch index, FX parameters — all hex. This matches the M8 and classic tracker conventions. Hex help text at the bottom of the screen shows the decimal equivalent when editing.
+
+### Values change color when non-default
+
+On instrument/mixer/table pages, a parameter that differs from its default value is drawn in a brighter or different color than one at default. This lets you scan a page and immediately see what's been tweaked. Dim = default, bright = changed.
+
+### Context-sensitive shortcuts compound
+
+Modifier combinations create a rich shortcut space from few keys. On a keyboard:
+- **Direction**: move cursor
+- **Shift+Direction**: change page
+- **Alt+Direction**: edit value (large/small step depending on Up-Down vs Left-Right)
+- **Alt+Shift**: additional actions (clone, deep copy, etc.)
+- **Ctrl+Z/C/V/X**: undo, copy, paste, cut (standard desktop conventions)
+
+### The minimap is always visible
+
+Bottom-right corner shows your position in the view hierarchy. You always know where you are. No hunting through menus.
 
 ## Grid dimensions
 
@@ -16,20 +51,18 @@ Color-based animations (cursor pulse, active track glow, waveform color breathin
 
 ## Common elements
 
-### Transport status (top-right, every page)
+Every page shares these elements in the same positions. They never move.
 
-The M8 shows `T+128` in the top-right corner of every page — the current tempo offset. We show the full transport state:
+### Transport status (top-right, every page)
 
 ```
 Col 30-39, Row 0:
                           T+120
 ```
 
-This is always visible regardless of which page is active.
+Always visible. Shows tempo. During playback, the tempo value pulses or shows a play indicator.
 
 ### Track activity indicators (right column, every page)
-
-The M8 shows 8 track activity dashes on the right edge of every page. When a track has an active voice, the dash becomes a bar. We do the same for our tracks:
 
 ```
 Col 37-39, Rows 2-9:
@@ -43,29 +76,27 @@ Col 37-39, Rows 2-9:
                           8 ---
 ```
 
-Dashes are dim. Active voices light up in accent color. This gives you peripheral awareness of which tracks are sounding from any page.
+Dashes are dim. Active voices light up in accent color. Gives peripheral awareness of which tracks are sounding from any page. Same as M8's track note monitor.
 
 ### Page indicator (bottom-right, every page)
-
-The M8 shows a small letter grid indicating available pages and the current page (highlighted). We do the same:
 
 ```
 Col 37-39, Row 23-24:
                           P
-                          SCPIT
+                          SPIMT
                           V
 ```
 
-Where S = Song, C = Chain, P = Phrase (pattern), I = Instrument (patch), T = Table. The current page letter is highlighted. Navigation: Shift+Left/Right moves between pages.
+S = Song, P = Pattern, I = Instrument, M = Mixer, T = Table. Current page letter is highlighted. Navigation: Shift+Left/Right moves between pages.
 
 ## Pages
 
-### Phrase view (pattern editor) — main view
+### Pattern editor — main view
 
-The primary view. Follows the M8 phrase layout: row numbers on the left, note/velocity/instrument/effect columns per track, scrollable.
+The primary view. Row numbers on the left, note/velocity/instrument/effect columns per track, scrollable. Unlike the M8 (which shows one track at a time), we show multiple tracks side by side for a more traditional tracker feel.
 
 ```
-PHRASE 00                         T+120
+PATTERN 00                         T+120
  Track 0  Track 1  Track 2       1 ---
                                   2 ---
 00|C-2 7F 00 --- --- ---          3 ---
@@ -77,7 +108,7 @@ PHRASE 00                         T+120
 06|--- -- -- G-1 60 01
 07|--- -- -- --- --- ---
 08|C-2 7F 00 --- --- ---          P
-09|--- -- -- --- --- ---          SCPIT
+09|--- -- -- --- --- ---          SPIMT
 10|--- -- -- E-1 60 01            V
 11|--- -- -- --- --- ---
 12|C-2 64 00 --- --- ---
@@ -100,31 +131,40 @@ Ch 0  Row 00  Oct 4  EDIT
 - Cursor row: tinted cursor background
 - Selection: tinted selection background
 
+**Cursor behavior:**
+- Direction: move between steps (Up/Down) and fields within a step (Left/Right)
+- Tab: jump to next track (or Option+Left/Right following M8)
+- Edit+Up/Down on note column: transpose by octave
+- Edit+Left/Right on note column: transpose by semitone
+- Edit+Direction on value columns: increment/decrement
+- On an empty cell, Edit inserts the last edited value
+
 **Scrolling:** The grid is a window. `top_display_row` advances when the cursor or playback position moves past the visible edge. Optional cursor centering.
 
 **Status bar (bottom row):** Current channel, row, octave, edit mode.
 
 ### Instrument view (patch editor)
 
-Edits the selected patch's FM parameters. Follows the M8 instrument editor layout exactly: two-column label/value grid, instrument type and name at top, mixer sends on the right.
+Follows the M8 instrument editor layout: consistent header, type-specific parameters on the left, mixer sends on the right in fixed positions. The mixer column (AMP, LIM, DRY, sends) is always in the same place regardless of instrument type.
 
 ```
 INST. 00                          T+120
 TYPE   FMSYNTH       LOAD SAVE   1 ---
 NAME   kick                       2 ---
-                                  3 ---
-CARRIER      MODULATOR            4 ---
- RATIO 1.00   RATIO 2.00         5 ---
- DETUN 0.00   DETUN 0.00         6 ---
- LEVEL 1.00   LEVEL 0.80         7 ---
- FDBK  0.00   FDBK  0.00         8 ---
+TRANSP ON   TBL  TIC 03          3 ---
+                                  4 ---
+CARRIER      MODULATOR            5 ---
+ RATIO 1.00   RATIO 2.00         6 ---
+ DETUN 0.00   DETUN 0.00         7 ---
+ LEVEL 1.00   LEVEL 0.80         8 ---
+ FDBK  0.00   FDBK  0.00
  ATK   0.01   ATK   0.01
  DEC   0.15   DEC   0.10
  SUS   0.00   SUS   0.40
  REL   0.10   REL   0.30
 
 INDEX  3.00         AMP   00     P
-FILTER OFF          LIM   CLIP   SCPIT
+FILTER OFF          LIM   CLIP   SPIMT
 CUTOFF FF           DRY   C0     V
 RES    00           S0    00
 ATK    0.001        S1    00
@@ -137,22 +177,24 @@ REL    0.100
 - Row 0: `INST. XX` — instrument number
 - Row 1: `TYPE FMSYNTH` + `LOAD SAVE` actions
 - Row 2: `NAME` — editable name field
-- Rows 4-12: Synthesis parameters, left column. For our 2-op FM voice: carrier params on the left, modulator params in the middle.
-- Rows 14-21: Voice-level parameters (index, filter, amplitude envelope) on the left. Mixer parameters (AMP, LIM, DRY, sends) on the right.
+- Row 3: `TRANSP` + table/tic settings (M8 convention, controls per-step behavior)
+- Rows 5-13: Synthesis parameters. Carrier left, modulator right. Side by side like the M8's 4 operators but with 2.
+- Rows 15-22: Voice-level parameters (index, filter, amplitude envelope) on the left. Mixer parameters (AMP, LIM, DRY, sends) on the right — always in the same position.
 
-**Cursor behavior:**
+**Cursor behavior (M8 convention):**
 - Up/Down: move between parameter rows
 - Left/Right: move between left and right columns, or between carrier/modulator
 - Edit+Up/Down: increment/decrement value by large steps
 - Edit+Left/Right: increment/decrement value by small steps
+- Edit+Option: reset to default value
 
-**Value display:** Parameters show their current value right-justified after the label. The selected value is highlighted in bright text. Labels are dim text. Values change color when they differ from defaults (M8 convention — helps spot what's been tweaked).
+**Value display:** Values that differ from defaults are drawn brighter. Default values are dim. You can scan the page and immediately see what's been customized.
 
-**LOAD/SAVE:** Cursor can move to these — activating them loads/saves preset patches. Future feature.
+**Operator copy/paste (from M8):** When the cursor is in an operator region, Shift+Option copies the operator parameters, Shift+Edit pastes. This lets you quickly duplicate operator settings between carrier and modulator.
 
 ### Mixer view (effect buses)
 
-Shows the 4 effect buses and the global mix. Follows the M8 mixer layout: one section per bus with type and parameters, plus global controls.
+Same interaction model. Label/value pairs, cursor navigates, Edit+Direction changes values.
 
 ```
 MIXER                             T+120
@@ -168,7 +210,7 @@ BUS 1  REVERB                     7 ---
 
 BUS 2  OVERDRIVE
  DRIVE  0.50                      P
-                                  SCPIT
+                                  SPIMT
 BUS 3  CHORUS                     V
  RATE   0.80
  DEPTH  0.50
@@ -178,15 +220,13 @@ BUS 3  CHORUS                     V
 
 **Layout convention:**
 - Each bus gets a header row (`BUS N  TYPE`) followed by its parameters
-- Empty buses show `BUS N  (empty)` — cursor on it to add an effect
-- Parameters are label + value, same as the instrument editor
-- The bus type is selectable — cursor on the type field, Edit+Up/Down cycles through Delay/Reverb/Overdrive/Chorus
-
-**Cursor behavior:** Same as instrument editor — Up/Down between rows, Edit+direction to change values.
+- Empty buses show `BUS N  (empty)` — Edit on it to add an effect
+- The bus type is selectable — Edit+Up/Down cycles through Delay/Reverb/Overdrive/Chorus
+- Parameters use the same label/value format as everywhere else
 
 ### Table view (modulation/automation)
 
-Per-instrument modulation tables. The M8 table view is a step sequencer for parameter automation — each row can set a target parameter and value. For us, this maps to LFO configuration and possibly future macro/envelope editing.
+Per-instrument modulation tables. Maps to our LFO configuration.
 
 ```
 TABLE 00                          T+120
@@ -202,20 +242,19 @@ LFO 1                             8 ---
  WAVE   SIN
  DEST   ---
  DEPTH  0                         P
-                                  SCPIT
+                                  SPIMT
                                   V
 ```
 
 **Layout convention:**
 - One section per LFO, same label/value format
-- DEST is a dropdown-style selector — Edit+direction cycles through available parameter targets (FilterFreq, Index, Pitch, Send0-3)
+- DEST is a selector — Edit+Direction cycles through parameter targets (FilterFreq, Index, Pitch, Send0-3)
 - WAVE cycles through waveform types (Sin, Tri, Saw, Sqr)
-
-This is simpler than the M8's full table view (which has per-step commands). Our LFOs are configured per-patch, not per-step, so the table view is more of a modulation routing page.
+- Empty (unrouted) LFOs show `---` for DEST
 
 ### Song view
 
-Arrangement of patterns. The M8 song view shows a grid of chain references per track. For us, it's simpler — a list of pattern indices in playback order.
+Arrangement of patterns. A list of pattern indices in playback order.
 
 ```
 SONG                              T+120
@@ -231,7 +270,7 @@ ROW PAT                           2 ---
  07  --
  08  --
  09  --                           P
- 10  --                           SCPIT
+ 10  --                           SPIMT
  11  --                           V
  12  --
  13  --
@@ -239,9 +278,9 @@ ROW PAT                           2 ---
  15  --
 ```
 
-**Layout:** Simple two-column list — song row number, pattern index. `--` means end of song. Cursor moves vertically, Edit+direction changes the pattern index at each row.
+**Layout:** Two-column list — song row number, pattern index. `--` means end of song. Edit+Direction changes the pattern index. Edit on an empty row inserts the last used pattern (M8 default insertion convention).
 
-This is a future feature — for now, the tracker works with a single pattern.
+**Live queueing:** During playback, moving the cursor to a row and pressing a queue key cues that pattern for the next boundary. The transport shows the queued pattern.
 
 ## State → draw commands (general pattern)
 
@@ -249,15 +288,15 @@ Every page follows the same rendering logic:
 
 ```ts
 function drawPage(display: DisplayList, state: TrackerState, now: number) {
-    // 1. Common elements (every page)
+    // 1. Common elements (every page, same positions)
     drawTransport(display, state);
     drawTrackActivity(display, state);
     drawPageIndicator(display, state);
 
     // 2. Page-specific content
     switch (state.currentPage) {
-        case Page.Phrase:
-            drawPhraseView(display, state, now);
+        case Page.Pattern:
+            drawPatternView(display, state, now);
             break;
         case Page.Instrument:
             drawInstrumentView(display, state, now);
@@ -277,7 +316,7 @@ function drawPage(display: DisplayList, state: TrackerState, now: number) {
 
 Each `drawXxxView` function:
 1. Iterates over the visible content (rows of parameters, pattern steps, etc.)
-2. For each row, draws labels in dim text and values in bright text
+2. For each row, draws labels in dim text and values in bright text (or brighter if non-default)
 3. Highlights the cursor position with accent foreground + tinted background rect
 4. Passes `now` to animation functions for cursor pulse, active voice glow, etc.
 
@@ -289,32 +328,36 @@ The cursor is always on exactly one editable value. It's represented as:
 interface Cursor {
     row: number;    // which parameter row (or pattern step)
     col: number;    // which column (left/right, or track index)
+    field: number;  // sub-field within a cell (pattern: note=0, vel=1, patch=2, fx=3)
 }
 ```
 
-On the phrase view, `col` is the track and `row` is the step. The sub-field within a step (note, velocity, instrument, effect) is a third dimension — the cursor is on a specific field within the cell.
+On the pattern view, `col` is the track and `row` is the step. `field` is which part of the step the cursor is on.
 
-On label/value pages (instrument, mixer, table), `col` distinguishes left column from right column (or carrier from modulator on the instrument page), and `row` is the parameter index.
+On label/value pages (instrument, mixer, table), `col` distinguishes left column from right column (or carrier from modulator), and `row` is the parameter index. `field` is unused.
 
-Navigation:
+Navigation (consistent across all pages):
 - **Direction keys**: Move cursor between fields
 - **Edit + Up/Down**: Increment/decrement value by large steps
 - **Edit + Left/Right**: Increment/decrement value by small steps
+- **Edit on empty cell**: Insert last edited/deleted value
+- **Edit + Option**: Delete/reset to default
 - **Shift + Left/Right**: Navigate between pages
-
-This matches the M8 exactly. One modifier for editing, one for page navigation. Direction keys are always navigation within the current page.
+- **Shift + Option**: Enter selection mode
+- **Option**: In selection mode, copy and exit. Otherwise context-dependent.
 
 ## Visual feedback summary
 
 | Event | Visual change | What changes in draw commands |
 |-------|--------------|-------------------------------|
 | Cursor moves | One value loses highlight, another gains it | 2 cells change fg color |
-| Value edited | Value text changes | A few characters change |
+| Value edited | Value text changes, color brightens if non-default | A few characters change |
 | Page switch | Entire screen content changes | Full redraw with new page content |
 | Playback advances | One row loses playback bg, next row gains it | ~1 row of cells change bg |
 | Pattern scrolls | Grid content shifts | All visible cells redraw |
 | Voice becomes active | Track activity dash lights up | 1 character changes color |
 | Play/stop | Transport text changes | A few characters |
+| Edit on empty cell | `--` becomes a value | Characters + fg color change |
 
 ## Dirty tracking
 
@@ -323,9 +366,6 @@ The `requestAnimationFrame` callback checks a dirty flag and an animation timer.
 ```ts
 function frame(now: number) {
     requestAnimationFrame(frame);
-
-    // Advance playback, check animation timers, etc.
-    // Each of these sets dirty = true if something changed
 
     if (!dirty && !animating) return;
     dirty = false;

@@ -21,8 +21,8 @@ const C = {
 
 // --- Grid setup ---
 
-const COLUMNS = 40;
-const ROWS = 25;
+const COLUMNS = 60;
+const ROWS = 32;
 
 const canvas = document.getElementById("display") as HTMLCanvasElement;
 const renderer = new Renderer({
@@ -46,7 +46,7 @@ interface DemoStep {
 
 const TRACK_NAMES = ["kick", "bass", "hat", "pad"];
 const PATTERN_LENGTH = 16;
-const VISIBLE_ROWS = 18;
+const VISIBLE_ROWS = 24;
 
 const tracks: DemoStep[][] = [
 	// kick
@@ -142,8 +142,8 @@ function drawTransport(
 
 	display.drawText(3, row, `${bpm.toFixed(1)} BPM`, ...C.textNormal);
 	display.drawText(16, row, `Pat ${String(pattern).padStart(2, "0")}`, ...C.textNormal);
-	display.drawText(25, row, `Oct ${String(octave)}`, ...C.textNormal);
-	display.drawText(33, row, "EDIT", ...C.textBright);
+	display.drawText(33, row, `Oct ${String(octave)}`, ...C.textNormal);
+	display.drawText(41, row, "EDIT", ...C.textBright);
 }
 
 function drawTrackHeaders(row: number) {
@@ -208,7 +208,7 @@ function drawPatternGrid(startRow: number, cursorRow: number, playbackRow: numbe
 
 function drawStatusBar(row: number) {
 	display.drawText(1, row, "Ch 0  Row 00  Pos 0", ...C.textDim);
-	display.drawText(25, row, "helm-audio", ...C.textDim);
+	display.drawText(45, row, "helm-audio", ...C.textDim);
 }
 
 // --- Render loop ---
@@ -269,8 +269,8 @@ function frame(now: number) {
 	drawTrackHeaders(2);
 	display.addRect(0, 3, COLUMNS, 1, ...C.bgMajor);
 	drawPatternGrid(4, 0, playbackRow);
-	display.addRect(0, 22, COLUMNS, 1, ...C.bgMajor);
-	drawStatusBar(23);
+	display.addRect(0, 29, COLUMNS, 1, ...C.bgMajor);
+	drawStatusBar(30);
 
 	renderer.draw(display);
 }
