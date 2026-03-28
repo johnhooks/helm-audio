@@ -3,9 +3,10 @@
 	"compilerOptions": {
 		"composite": true,
 		"outDir": "dist",
-		"rootDir": "src"
+		"rootDir": "src",
+		"lib": ["ES2024", "DOM"]
 	},
 	"include": ["src"],
 	"exclude": ["dist", "node_modules"],
-	"references": [{ "path": "../types" }]
+	"references": [{ "path": "../types" }, { "path": "../protocol" }, { "path": "../worklet" }]
 }

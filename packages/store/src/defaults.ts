@@ -64,7 +64,7 @@ export function createInitialState(numTracks = 4): TrackerState {
 	};
 
 	return {
-		page: Page.Pattern,
+		page: Page.Sequence,
 		cursor: { row: 0, col: 0, field: StepField.Note },
 		scrollRow: 0,
 

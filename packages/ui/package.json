@@ -1,0 +1,14 @@
+{
+	"name": "@helm-audio/ui",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@helm-audio/display": "workspace:*",
+		"@helm-audio/store": "workspace:*",
+		"@helm-audio/types": "workspace:*"
+	}
+}

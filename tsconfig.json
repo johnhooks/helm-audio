@@ -1,10 +1,12 @@
 {
 	"files": [],
 	"references": [
+		{ "path": "packages/types" },
 		{ "path": "packages/protocol" },
 		{ "path": "packages/worklet" },
 		{ "path": "packages/display" },
-		{ "path": "packages/state" },
+		{ "path": "packages/store" },
+		{ "path": "packages/ui" },
 		{ "path": "packages/local" }
 	]
 }

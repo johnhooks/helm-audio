@@ -6,6 +6,5 @@
 		"rootDir": "src"
 	},
 	"include": ["src"],
-	"exclude": ["dist", "node_modules"],
-	"references": [{ "path": "../types" }]
+	"exclude": ["dist", "node_modules"]
 }

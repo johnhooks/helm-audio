@@ -1,10 +1,10 @@
-import type { BusSetup, Patch, PatternData, Step } from "@helm-audio/protocol";
+import type { BusSetup, Patch, PatternData, Step } from "./audio.ts";
 
 // --- Pages ---
 
 export enum Page {
-	Song = 0,
-	Pattern = 1,
+	Pattern = 0,
+	Sequence = 1,
 	Instrument = 2,
 	Table = 3,
 	Mixer = 4,

@@ -7,6 +7,6 @@
 		"lib": ["ES2024", "DOM"]
 	},
 	"include": ["src"],
-	"exclude": ["dist", "node_modules"],
-	"references": [{ "path": "../protocol" }, { "path": "../worklet" }]
+	"exclude": ["dist", "node_modules", "src/**/*.test.ts"],
+	"references": [{ "path": "../display" }, { "path": "../store" }, { "path": "../types" }]
 }

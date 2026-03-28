@@ -1,5 +1,5 @@
 {
-	"name": "@helm-audio/state",
+	"name": "@helm-audio/store",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
@@ -11,6 +11,7 @@
 	},
 	"dependencies": {
 		"@helm-audio/protocol": "workspace:*",
+		"@helm-audio/types": "workspace:*",
 		"@helm-audio/worklet": "workspace:*"
 	}
 }

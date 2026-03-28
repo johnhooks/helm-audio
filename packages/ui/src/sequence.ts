@@ -1,0 +1,233 @@
+import type { DisplayList } from "@helm-audio/display";
+import type { TrackerStore } from "@helm-audio/store";
+import { TrigType, type NoteOnTrig, type Trig } from "@helm-audio/types";
+import type { Element } from "./element.ts";
+import { chromeElements } from "./chrome.ts";
+import { C } from "./palette.ts";
+
+const GRID_ROW = 3;
+const NUM_STEPS = 16;
+const NUM_TRACKS = 8;
+
+// Column offsets within a track group
+const NOTE_COL = 2;
+const VEL_COL = 6;
+const INST_COL = 9;
+const FX1_COL = 12;
+const FX2_COL = 19;
+const FX3_COL = 26;
+
+// Track column width (total chars per track section)
+const TRACK_WIDTH = 5; // just N V I for now, FX disabled
+
+const NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+
+function noteName(midi: number): string {
+	const oct = Math.floor(midi / 12) - 1;
+	const name = NOTE_NAMES[midi % 12];
+	return `${name}${oct}`;
+}
+
+function hexByte(n: number): string {
+	return n.toString(16).toUpperCase().padStart(2, "0");
+}
+
+function hexNibble(n: number): string {
+	return n.toString(16).toUpperCase();
+}
+
+function isNoteOn(trig: Trig): trig is NoteOnTrig {
+	return trig.type === TrigType.NoteOn;
+}
+
+/**
+ * Build the phrase view element tree.
+ *
+ * Layout (matching M8 phrase-view.txt):
+ *   Row 0: SEQ nn
+ *   Row 2: Column headers (N V I FX1 FX2 FX3)
+ *   Rows 3-18: 16 step rows with fields
+ */
+export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) => void): Element {
+	const fields = ["note", "vel", "inst", "fx1", "fx2", "fx3"];
+	const fieldCols = [NOTE_COL, VEL_COL, INST_COL, FX1_COL, FX2_COL, FX3_COL];
+	const fieldWidths = [3, 2, 2, 5, 5, 5];
+
+	// --- Step field elements ---
+	const stepChildren: Element[] = [];
+
+	for (let r = 0; r < NUM_STEPS; r++) {
+		for (let f = 0; f < fields.length; f++) {
+			const row = r;
+			const fieldName = fields[f];
+			const fxField = f >= 3;
+
+			stepChildren.push({
+				id: `${hexNibble(row)}-${fieldName}`,
+				col: fieldCols[f],
+				row: GRID_ROW + r,
+				width: fieldWidths[f],
+				height: 1,
+				enabled: !fxField, // FX columns disabled for now
+				draw: (display, focused) => {
+					const pattern = store.getActivePattern();
+					// For now we only show track 0
+					const trackIdx = store.state.cursor.col;
+					const track = pattern?.tracks[trackIdx];
+					const step = track?.events.find(e => e.stepIndex === row);
+					const trig = step?.trig;
+
+					let text: string;
+					let color = focused ? C.textHighlight : fxField ? C.disabled : C.textDim;
+
+					switch (fieldName) {
+						case "note":
+							if (trig && isNoteOn(trig)) {
+								text = noteName(trig.note);
+								color = focused ? C.textHighlight : C.note;
+							} else {
+								text = "---";
+							}
+							break;
+						case "vel":
+							if (trig && isNoteOn(trig)) {
+								text = hexByte(Math.round(trig.velocity * 127));
+								color = focused ? C.textHighlight : C.velocity;
+							} else {
+								text = "--";
+							}
+							break;
+						case "inst":
+							text = "--";
+							break;
+						case "fx1":
+						case "fx2":
+						case "fx3":
+							text = "---00";
+							color = C.disabled;
+							break;
+						default:
+							text = "";
+					}
+
+					display.drawText(fieldCols[f], GRID_ROW + row, text, ...color);
+				},
+			});
+		}
+	}
+
+	// --- Grid with arrow navigation ---
+	const grid: Element = {
+		id: "grid",
+		col: 0, row: GRID_ROW, width: 32, height: NUM_STEPS,
+		enabled: true,
+		children: stepChildren,
+		onKey: (key, path) => {
+			const cellId = path[path.length - 1];
+			const match = cellId.match(/^([0-9A-F])-(\w+)$/);
+			if (!match) return false;
+
+			const r = parseInt(match[1], 16);
+			const fieldName = match[2];
+			const fIdx = fields.indexOf(fieldName);
+			if (fIdx === -1) return false;
+
+			let newR = r;
+			let newF = fIdx;
+
+			switch (key) {
+				case "ArrowUp": newR = Math.max(0, r - 1); break;
+				case "ArrowDown": newR = Math.min(NUM_STEPS - 1, r + 1); break;
+				case "ArrowLeft": {
+					// Skip disabled fields going left
+					let next = fIdx - 1;
+					while (next >= 0 && next >= 3) next--; // skip FX cols
+					if (next >= 0) newF = next;
+					break;
+				}
+				case "ArrowRight": {
+					let next = fIdx + 1;
+					while (next < fields.length && next >= 3) next = fields.length; // skip FX cols
+					if (next < fields.length) newF = next;
+					break;
+				}
+				default: return false;
+			}
+
+			const newId = `${hexNibble(newR)}-${fields[newF]}`;
+			if (newId !== cellId) {
+				setPath(["sequence", "grid", newId]);
+				// Sync cursor to store
+				store.setCursor(newR, store.state.cursor.col, newF);
+			}
+			return true;
+		},
+		draw: () => {},
+	};
+
+	// --- Title ---
+	const titleEl: Element = {
+		id: "title",
+		col: 0, row: 0, width: 12, height: 1,
+		enabled: false,
+		draw: (display) => {
+			const idx = hexByte(store.state.activePatternIndex);
+			display.drawText(0, 0, `SEQ ${idx}`, ...C.title);
+		},
+	};
+
+	// --- Column headers ---
+	const headersEl: Element = {
+		id: "headers",
+		col: 0, row: 2, width: 32, height: 1,
+		enabled: false,
+		draw: (display) => {
+			display.drawText(NOTE_COL, 2, "N", ...C.label);
+			display.drawText(VEL_COL, 2, "V", ...C.label);
+			display.drawText(INST_COL, 2, "I", ...C.label);
+			display.drawText(FX1_COL, 2, "FX1", ...C.disabled);
+			display.drawText(FX2_COL, 2, "FX2", ...C.disabled);
+			display.drawText(FX3_COL, 2, "FX3", ...C.disabled);
+		},
+	};
+
+	// --- Row labels ---
+	const rowLabelsEl: Element = {
+		id: "row-labels",
+		col: 0, row: GRID_ROW, width: 1, height: NUM_STEPS,
+		enabled: false,
+		draw: (display) => {
+			for (let r = 0; r < NUM_STEPS; r++) {
+				const isMajor = r % 4 === 0;
+				const color = isMajor ? C.textNormal : C.textDim;
+				display.drawText(0, GRID_ROW + r, hexNibble(r), ...color);
+			}
+		},
+	};
+
+	// --- Row backgrounds ---
+	const rowBgEl: Element = {
+		id: "row-bg",
+		col: 0, row: GRID_ROW, width: 60, height: NUM_STEPS,
+		enabled: false,
+		draw: (display) => {
+			for (let r = 0; r < NUM_STEPS; r++) {
+				const isPlayback = store.state.playing && r === store.state.playbackStep;
+				const isMajor = r % 4 === 0;
+				if (isPlayback) {
+					display.addRect(0, GRID_ROW + r, 60, 1, ...C.playbackRow);
+				} else if (isMajor) {
+					display.addRect(0, GRID_ROW + r, 60, 1, ...C.bgMajor);
+				}
+			}
+		},
+	};
+
+	return {
+		id: "sequence",
+		col: 0, row: 0, width: 60, height: 25,
+		enabled: true,
+		children: [rowBgEl, titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(store.state)],
+		draw: () => {},
+	};
+}
