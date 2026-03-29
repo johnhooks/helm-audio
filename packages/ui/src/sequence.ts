@@ -1,4 +1,3 @@
-import type { DisplayList } from "@helm-audio/display";
 import { TrigType, StepField, type TrackerState, type Action, type NoteOnTrig, type Trig } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
@@ -6,8 +5,6 @@ import { C } from "./palette.ts";
 
 const GRID_ROW = 3;
 const NUM_STEPS = 16;
-const NUM_TRACKS = 8;
-
 // Column offsets within a track group
 const NOTE_COL = 2;
 const VEL_COL = 6;
@@ -21,7 +18,7 @@ const NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", 
 function noteName(midi: number): string {
 	const oct = Math.floor(midi / 12) - 1;
 	const name = NOTE_NAMES[midi % 12];
-	return `${name}${oct}`;
+	return `${name}${String(oct)}`;
 }
 
 function hexByte(n: number): string {

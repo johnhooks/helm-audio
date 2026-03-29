@@ -36,7 +36,7 @@ export class Tracker {
 
 	constructor(store: TrackerStore) {
 		this.store = store;
-		this.focusPath = DEFAULT_PATHS[store.state.page] ?? DEFAULT_PATHS[Page.Sequence];
+		this.focusPath = DEFAULT_PATHS[store.state.page];
 		this.view = this.buildView();
 	}
 
@@ -75,7 +75,7 @@ export class Tracker {
 
 	switchPage(page: Page): void {
 		this.emit({ type: "setPage", page });
-		this.focusPath = DEFAULT_PATHS[page] ?? DEFAULT_PATHS[Page.Sequence];
+		this.focusPath = DEFAULT_PATHS[page];
 		this.view = this.buildView();
 		this.dirty = true;
 	}

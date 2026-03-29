@@ -1,4 +1,3 @@
-import type { DisplayList } from "@helm-audio/display";
 import type { TrackerState, Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
@@ -30,7 +29,7 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 			const row = r;
 			const track = t;
 			gridChildren.push({
-				id: `${hexRow(row)}-${track}`,
+				id: `${hexRow(row)}-${String(track)}`,
 				col: 3 + t * 3,
 				row: GRID_ROW + r,
 				width: 2,
@@ -70,7 +69,7 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 				default: return false;
 			}
 
-			const newId = `${hexRow(newR)}-${newT}`;
+			const newId = `${hexRow(newR)}-${String(newT)}`;
 			if (newId !== cellId) {
 				setPath(["pattern", "grid", newId]);
 			}
@@ -95,7 +94,7 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 		enabled: false,
 		draw: (display) => {
 			for (let t = 0; t < NUM_TRACKS; t++) {
-				display.drawText(3 + t * 3, 2, `${t + 1}`, ...C.label);
+				display.drawText(3 + t * 3, 2, String(t + 1), ...C.label);
 			}
 		},
 	};

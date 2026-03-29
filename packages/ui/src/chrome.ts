@@ -14,13 +14,13 @@ export function drawTransport(display: DisplayList, state: TrackerState, row: nu
 	const [ir, ig, ib] = state.playing ? C.accent : C.textDim;
 	display.drawText(R, row, `T`, ...C.label);
 	display.drawText(R + 1, row, icon, ir, ig, ib);
-	display.drawText(R + 2, row, `${state.tempo}`, ...C.textNormal);
+	display.drawText(R + 2, row, String(state.tempo), ...C.textNormal);
 }
 
 /** Track activity indicators: 1: --- through 8: --- */
 export function drawTrackActivity(display: DisplayList, _state: TrackerState, startRow: number): void {
 	for (let t = 0; t < 8; t++) {
-		display.drawText(R, startRow + t, `${t + 1}:`, ...C.textDim);
+		display.drawText(R, startRow + t, `${String(t + 1)}:`, ...C.textDim);
 		display.drawText(R + 2, startRow + t, ` ---`, ...C.textDim);
 	}
 }
@@ -66,25 +66,25 @@ export function chromeElements(state: TrackerState): Element[] {
 			id: "transport",
 			col: R, row: 2, width: 12, height: 1,
 			enabled: false,
-			draw: (display) => drawTransport(display, state, 2),
+			draw: (display) => { drawTransport(display, state, 2); },
 		},
 		{
 			id: "track-activity",
 			col: R, row: 4, width: 12, height: 8,
 			enabled: false,
-			draw: (display) => drawTrackActivity(display, state, 4),
+			draw: (display) => { drawTrackActivity(display, state, 4); },
 		},
 		{
 			id: "keyboard",
 			col: R, row: 14, width: 12, height: 1,
 			enabled: false,
-			draw: (display) => drawKeyboard(display, 14),
+			draw: (display) => { drawKeyboard(display, 14); },
 		},
 		{
 			id: "page-indicator",
 			col: R, row: 17, width: 3, height: 1,
 			enabled: false,
-			draw: (display) => drawPageIndicator(display, state, 17),
+			draw: (display) => { drawPageIndicator(display, state, 17); },
 		},
 	];
 }

@@ -17,7 +17,7 @@ export function printTree(el: Element, indent = 0): string {
 	if (!el.enabled) flags.push(":disabled");
 	if (el.onKey) flags.push(":keys");
 
-	const attrs = `${el.col} ${el.row} ${el.width}x${el.height}`;
+	const attrs = `${String(el.col)} ${String(el.row)} ${String(el.width)}x${String(el.height)}`;
 	const flagStr = flags.length > 0 ? " " + flags.join(" ") : "";
 
 	if (!el.children || el.children.length === 0) {

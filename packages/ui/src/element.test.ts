@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
+import type { DisplayList } from "@helm-audio/display";
 import {
 	type Element,
 	resolve,
@@ -217,7 +218,7 @@ describe("drawAll", () => {
 			],
 		});
 
-		drawAll(null as any, tree, ["root", "a", "a1"]);
+		drawAll(null as unknown as DisplayList, tree, ["root", "a", "a1"]);
 		expect(drawn).toEqual(["root", "a", "a1", "b"]);
 	});
 
@@ -236,7 +237,7 @@ describe("drawAll", () => {
 			],
 		});
 
-		drawAll(null as any, tree, ["root", "a", "a1"]);
+		drawAll(null as unknown as DisplayList, tree, ["root", "a", "a1"]);
 		expect(focusState["root"]).toBe(false);
 		expect(focusState["a"]).toBe(false);
 		expect(focusState["a1"]).toBe(true);
@@ -260,7 +261,7 @@ describe("drawAll", () => {
 			],
 		});
 
-		drawAll(null as any, tree, ["root", "a", "a1"]);
+		drawAll(null as unknown as DisplayList, tree, ["root", "a", "a1"]);
 		expect(scopeState["root"]).toBe(true);
 		expect(scopeState["a"]).toBe(true);
 		expect(scopeState["a1"]).toBe(true);

@@ -1,4 +1,3 @@
-import type { DisplayList } from "@helm-audio/display";
 import type { TrackerState, Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
@@ -104,7 +103,7 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 		const baseCol = 8 + op * 7;
 
 		paramFields.push({
-			id: `op${op}-ratio`,
+			id: `op${String(op)}-ratio`,
 			col: baseCol, row: PARAMS_ROW + 2, width: 5, height: 1,
 			enabled: true,
 			draw: (display, focused) => {
@@ -116,7 +115,7 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 		});
 
 		paramFields.push({
-			id: `op${op}-level`,
+			id: `op${String(op)}-level`,
 			col: baseCol, row: PARAMS_ROW + 3, width: 5, height: 1,
 			enabled: true,
 			draw: (display, focused) => {
@@ -132,11 +131,12 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	// MOD slots (disabled)
 	for (let m = 0; m < 2; m++) {
 		paramFields.push({
-			id: `mod${m + 1}`,
+			id: `mod${String(m + 1)}`,
 			col: 8, row: PARAMS_ROW + 4 + m, width: 5, height: 1,
 			enabled: false,
 			draw: (display) => {
-				display.drawText(8, PARAMS_ROW + 4 + m, "-----  -----", ...C.disabled);
+				const r = PARAMS_ROW + 4 + m;
+					display.drawText(8, r, "-----  -----", ...C.disabled);
 			},
 		});
 	}
@@ -294,7 +294,7 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 			display.drawText(0, PARAMS_ROW + 4, "MOD", ...C.disabled);
 
 			for (let m = 0; m < 4; m++) {
-				display.drawText(0, 13 + m, `MOD${m + 1}`, ...C.disabled);
+				display.drawText(0, 13 + m, `MOD${String(m + 1)}`, ...C.disabled);
 				display.drawText(8, 13 + m, "00", ...C.disabled);
 			}
 
