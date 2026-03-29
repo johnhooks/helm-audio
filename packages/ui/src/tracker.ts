@@ -1,6 +1,6 @@
 import type { DisplayList } from "@helm-audio/display";
 import type { TrackerStore } from "@helm-audio/store";
-import { Page } from "@helm-audio/types";
+import { Page, type Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { dispatchKey, drawAll } from "./element.ts";
 import { buildPatternView } from "./pattern.ts";
@@ -20,12 +20,16 @@ const DEFAULT_PATHS: Record<number, string[]> = {
  * key dispatch, and view rendering.
  *
  * The shell creates a Tracker, passes events to it, and calls draw()
- * each frame. The Tracker produces abstract actions (TODO) and marks
- * itself dirty when the display needs to update.
+ * each frame. Actions emitted by views are dispatched to the store
+ * and forwarded to the onAction callback for the shell to route
+ * to worklets.
  */
 export class Tracker {
 	dirty = true;
 	focusPath: string[];
+
+	/** Shell-provided callback for actions that need routing beyond the store. */
+	onAction?: (action: Action) => void;
 
 	private store: TrackerStore;
 	private view: Element;
@@ -70,7 +74,7 @@ export class Tracker {
 	// --- Page management ---
 
 	switchPage(page: Page): void {
-		this.store.setPage(page);
+		this.emit({ type: "setPage", page });
 		this.focusPath = DEFAULT_PATHS[page] ?? DEFAULT_PATHS[Page.Sequence];
 		this.view = this.buildView();
 		this.dirty = true;
@@ -88,21 +92,28 @@ export class Tracker {
 
 	// --- Internals ---
 
+	private emit = (action: Action): void => {
+		this.store.dispatch(action);
+		this.onAction?.(action);
+		this.dirty = true;
+	};
+
 	private setPath = (path: string[]): void => {
 		this.focusPath = path;
 		this.dirty = true;
 	};
 
 	private buildView(): Element {
-		switch (this.store.state.page) {
+		const { state } = this.store;
+		switch (state.page) {
 			case Page.Pattern:
-				return buildPatternView(this.store, this.setPath);
+				return buildPatternView(state, this.emit, this.setPath);
 			case Page.Sequence:
-				return buildSequenceView(this.store, this.setPath);
+				return buildSequenceView(state, this.emit, this.setPath);
 			case Page.Instrument:
-				return buildInstrumentView(this.store, this.setPath);
+				return buildInstrumentView(state, this.emit, this.setPath);
 			default:
-				return buildSequenceView(this.store, this.setPath);
+				return buildSequenceView(state, this.emit, this.setPath);
 		}
 	}
 }

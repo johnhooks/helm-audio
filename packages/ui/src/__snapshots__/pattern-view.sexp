@@ -1,5 +1,5 @@
 (pattern 0 0 60x25
-  (title 0 0 4x1 :disabled)
+  (title 0 0 7x1 :disabled)
   (headers 0 2 27x1 :disabled)
   (row-labels 0 3 2x16 :disabled)
   (grid 0 3 27x16 :keys

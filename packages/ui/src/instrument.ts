@@ -1,5 +1,5 @@
 import type { DisplayList } from "@helm-audio/display";
-import type { TrackerStore } from "@helm-audio/store";
+import type { TrackerState, Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
@@ -19,7 +19,7 @@ function hexByte(n: number): string {
 /**
  * Build the instrument view element tree.
  *
- * Layout (matching M8 fm-synth.txt):
+ * Layout:
  *   Row 0: INST. nn
  *   Row 2-4: Header (TYPE, NAME, TRANSP/TBL/TIC/EQ)
  *   Row 6-7: ALGO + operator waveforms
@@ -27,8 +27,8 @@ function hexByte(n: number): string {
  *   Row 13-19: MOD1-4 + mixer column (AMP/LIM/PAN/DRY/MFX/DEL/REV)
  *   Row 16-18: FILTER/CUTOFF/RES
  */
-export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) => void): Element {
-	const getPatch = () => store.state.patches[store.state.currentPatchIndex] ?? store.state.patches[0];
+export function buildInstrumentView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
+	const getPatch = () => state.patches[state.currentPatchIndex] ?? state.patches[0];
 
 	// --- Header fields ---
 	const headerFields: Element[] = [
@@ -46,7 +46,7 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 			col: 8, row: HEADER_ROW + 1, width: 14, height: 1,
 			enabled: true,
 			draw: (display, focused) => {
-				const name = store.state.patchNames[store.state.currentPatchIndex] ?? "init";
+				const name = state.patchNames[state.currentPatchIndex] ?? "init";
 				const padded = name.padEnd(14, "-");
 				const color = focused ? C.textHighlight : C.textDim;
 				display.drawText(8, HEADER_ROW + 1, padded, ...color);
@@ -76,7 +76,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 					if (next < ids.length) {
 						setPath(["instrument", "header", ids[next]]);
 					} else {
-						// Move to params section
 						setPath(["instrument", "params", "algo"]);
 					}
 					return true;
@@ -88,7 +87,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 	};
 
 	// --- FM parameters ---
-	const opLabels = ["A", "B"];
 	const paramFields: Element[] = [
 		{
 			id: "algo",
@@ -159,7 +157,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 					if (idx > 0) {
 						setPath(["instrument", "params", enabledIds[idx - 1]]);
 					} else {
-						// Move to header
 						setPath(["instrument", "header", "name"]);
 					}
 					return true;
@@ -168,7 +165,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 					if (idx < enabledIds.length - 1) {
 						setPath(["instrument", "params", enabledIds[idx + 1]]);
 					} else {
-						// Move to mixer
 						setPath(["instrument", "mixer", "filter"]);
 					}
 					return true;
@@ -203,7 +199,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 			col: MIXER_COL + 4, row: mr.row, width: 7, height: 1,
 			enabled: false,
 			draw: (display) => {
-				const patch = getPatch();
 				let val = "00";
 				if (mr.id === "lim") val = "00CLIP";
 				if (mr.id === "pan") val = "80";
@@ -272,7 +267,7 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 		col: 0, row: 0, width: 10, height: 1,
 		enabled: false,
 		draw: (display) => {
-			const idx = store.state.currentPatchIndex.toString(16).toUpperCase().padStart(2, "0");
+			const idx = state.currentPatchIndex.toString(16).toUpperCase().padStart(2, "0");
 			display.drawText(0, 0, `INST. ${idx}`, ...C.title);
 		},
 	};
@@ -283,7 +278,6 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 		col: 0, row: 0, width: 44, height: 20,
 		enabled: false,
 		draw: (display) => {
-			// Header labels
 			display.drawText(0, HEADER_ROW, "TYPE", ...C.label);
 			display.drawText(24, HEADER_ROW, "LOAD SAVE", ...C.disabled);
 			display.drawText(0, HEADER_ROW + 1, "NAME", ...C.label);
@@ -293,30 +287,25 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 			display.drawText(23, HEADER_ROW + 2, "01", ...C.value);
 			display.drawText(28, HEADER_ROW + 2, "EQ --", ...C.textDim);
 
-			// Param labels
 			display.drawText(0, PARAMS_ROW, "ALGO", ...C.label);
 			display.drawText(8, PARAMS_ROW + 1, "A SIN  B SIN", ...C.textNormal);
 			display.drawText(0, PARAMS_ROW + 2, "RATIO", ...C.label);
 			display.drawText(0, PARAMS_ROW + 3, "LEV/FB", ...C.label);
 			display.drawText(0, PARAMS_ROW + 4, "MOD", ...C.disabled);
 
-			// MOD1-4 labels
 			for (let m = 0; m < 4; m++) {
 				display.drawText(0, 13 + m, `MOD${m + 1}`, ...C.disabled);
 				display.drawText(8, 13 + m, "00", ...C.disabled);
 			}
 
-			// Mixer labels
 			for (const mr of mixerRows) {
 				display.drawText(MIXER_COL, mr.row, mr.label, ...C.disabled);
 			}
 
-			// Filter labels
 			for (const fr of filterRows) {
 				display.drawText(0, fr.row, fr.label, ...C.label);
 			}
 
-			// Mixer labels on right
 			display.drawText(MIXER_COL, 16, "MFX", ...C.disabled);
 			display.drawText(MIXER_COL, 17, "DEL", ...C.disabled);
 			display.drawText(MIXER_COL, 18, "REV", ...C.disabled);
@@ -327,7 +316,7 @@ export function buildInstrumentView(store: TrackerStore, setPath: (p: string[]) 
 		id: "instrument",
 		col: 0, row: 0, width: 60, height: 25,
 		enabled: true,
-		children: [titleEl, labelsEl, header, params, mixer, ...chromeElements(store.state)],
+		children: [titleEl, labelsEl, header, params, mixer, ...chromeElements(state)],
 		draw: () => {},
 	};
 }

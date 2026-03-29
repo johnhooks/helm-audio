@@ -1,7 +1,6 @@
 import type { DisplayList } from "@helm-audio/display";
-import type { TrackerStore } from "@helm-audio/store";
+import type { TrackerState, Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
-import { moveSibling } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
 
@@ -14,15 +13,15 @@ function hexRow(n: number): string {
 }
 
 /**
- * Build the song view element tree.
+ * Build the pattern view element tree.
  *
- * Layout (matching M8 song-view.txt):
- *   Row 0: SONG title
+ * Layout:
+ *   Row 0: PATTERN title
  *   Row 2: Track headers (1-8) + transport (chrome)
  *   Rows 3-18: 16 rows x 8 track chain grid
- *   Right panel: track activity, keyboard, SCPIT (chrome)
+ *   Right panel: track activity, keyboard, PSI (chrome)
  */
-export function buildPatternView(store: TrackerStore, setPath: (p: string[]) => void): Element {
+export function buildPatternView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
 	// --- Grid cell elements ---
 	const gridChildren: Element[] = [];
 
@@ -38,10 +37,8 @@ export function buildPatternView(store: TrackerStore, setPath: (p: string[]) => 
 				height: 1,
 				enabled: true,
 				draw: (display, focused) => {
-					// Chain reference value
-					const chain = store.state.chain;
 					const idx = row * NUM_TRACKS + track;
-					const val = idx < chain.length ? hexRow(chain[idx].patternIndex) : "--";
+					const val = idx < state.chain.length ? hexRow(state.chain[idx].patternIndex) : "--";
 					const color = focused ? C.textHighlight : C.disabled;
 					display.drawText(3 + track * 3, GRID_ROW + row, val, ...color);
 				},
@@ -56,7 +53,6 @@ export function buildPatternView(store: TrackerStore, setPath: (p: string[]) => 
 		enabled: true,
 		children: gridChildren,
 		onKey: (key, path) => {
-			// path: ["pattern", "grid", "0A-3"]
 			const cellId = path[path.length - 1];
 			const match = cellId.match(/^([0-9A-F]{2})-(\d)$/);
 			if (!match) return false;
@@ -86,7 +82,7 @@ export function buildPatternView(store: TrackerStore, setPath: (p: string[]) => 
 	// --- Title and row labels (non-focusable) ---
 	const titleEl: Element = {
 		id: "title",
-		col: 0, row: 0, width: 4, height: 1,
+		col: 0, row: 0, width: 7, height: 1,
 		enabled: false,
 		draw: (display) => {
 			display.drawText(0, 0, "PATTERN", ...C.title);
@@ -119,7 +115,7 @@ export function buildPatternView(store: TrackerStore, setPath: (p: string[]) => 
 		id: "pattern",
 		col: 0, row: 0, width: 60, height: 25,
 		enabled: true,
-		children: [titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(store.state)],
+		children: [titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(state)],
 		draw: () => {},
 	};
 }

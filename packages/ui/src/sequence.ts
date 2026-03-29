@@ -1,6 +1,5 @@
 import type { DisplayList } from "@helm-audio/display";
-import type { TrackerStore } from "@helm-audio/store";
-import { TrigType, type NoteOnTrig, type Trig } from "@helm-audio/types";
+import { TrigType, StepField, type TrackerState, type Action, type NoteOnTrig, type Trig } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
@@ -12,13 +11,10 @@ const NUM_TRACKS = 8;
 // Column offsets within a track group
 const NOTE_COL = 2;
 const VEL_COL = 6;
-const INST_COL = 9;
+const PATCH_COL = 9;
 const FX1_COL = 12;
 const FX2_COL = 19;
 const FX3_COL = 26;
-
-// Track column width (total chars per track section)
-const TRACK_WIDTH = 5; // just N V I for now, FX disabled
 
 const NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
 
@@ -41,17 +37,26 @@ function isNoteOn(trig: Trig): trig is NoteOnTrig {
 }
 
 /**
- * Build the phrase view element tree.
+ * Build the sequence view element tree.
  *
- * Layout (matching M8 phrase-view.txt):
+ * Layout:
  *   Row 0: SEQ nn
  *   Row 2: Column headers (N V I FX1 FX2 FX3)
  *   Rows 3-18: 16 step rows with fields
  */
-export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) => void): Element {
-	const fields = ["note", "vel", "inst", "fx1", "fx2", "fx3"];
-	const fieldCols = [NOTE_COL, VEL_COL, INST_COL, FX1_COL, FX2_COL, FX3_COL];
+export function buildSequenceView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
+	const fields = ["note", "vel", "patch", "fx1", "fx2", "fx3"];
+	const fieldCols = [NOTE_COL, VEL_COL, PATCH_COL, FX1_COL, FX2_COL, FX3_COL];
 	const fieldWidths = [3, 2, 2, 5, 5, 5];
+	// Map field array index to StepField enum for cursor sync
+	const fieldToStepField: Record<number, StepField> = {
+		0: StepField.Note,
+		1: StepField.Velocity,
+		2: StepField.Patch,
+		3: StepField.Lock, // fx1 — closest mapping for now
+	};
+
+	const pattern = state.patterns[state.activePatternIndex] ?? null;
 
 	// --- Step field elements ---
 	const stepChildren: Element[] = [];
@@ -68,11 +73,9 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 				row: GRID_ROW + r,
 				width: fieldWidths[f],
 				height: 1,
-				enabled: !fxField, // FX columns disabled for now
+				enabled: !fxField,
 				draw: (display, focused) => {
-					const pattern = store.getActivePattern();
-					// For now we only show track 0
-					const trackIdx = store.state.cursor.col;
+					const trackIdx = state.cursor.col;
 					const track = pattern?.tracks[trackIdx];
 					const step = track?.events.find(e => e.stepIndex === row);
 					const trig = step?.trig;
@@ -97,7 +100,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 								text = "--";
 							}
 							break;
-						case "inst":
+						case "patch":
 							text = "--";
 							break;
 						case "fx1":
@@ -139,15 +142,14 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 				case "ArrowUp": newR = Math.max(0, r - 1); break;
 				case "ArrowDown": newR = Math.min(NUM_STEPS - 1, r + 1); break;
 				case "ArrowLeft": {
-					// Skip disabled fields going left
 					let next = fIdx - 1;
-					while (next >= 0 && next >= 3) next--; // skip FX cols
+					while (next >= 0 && next >= 3) next--;
 					if (next >= 0) newF = next;
 					break;
 				}
 				case "ArrowRight": {
 					let next = fIdx + 1;
-					while (next < fields.length && next >= 3) next = fields.length; // skip FX cols
+					while (next < fields.length && next >= 3) next = fields.length;
 					if (next < fields.length) newF = next;
 					break;
 				}
@@ -157,8 +159,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 			const newId = `${hexNibble(newR)}-${fields[newF]}`;
 			if (newId !== cellId) {
 				setPath(["sequence", "grid", newId]);
-				// Sync cursor to store
-				store.setCursor(newR, store.state.cursor.col, newF);
+				emit({ type: "setCursor", row: newR, col: state.cursor.col, field: fieldToStepField[newF] ?? StepField.Note });
 			}
 			return true;
 		},
@@ -171,7 +172,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 		col: 0, row: 0, width: 12, height: 1,
 		enabled: false,
 		draw: (display) => {
-			const idx = hexByte(store.state.activePatternIndex);
+			const idx = hexByte(state.activePatternIndex);
 			display.drawText(0, 0, `SEQ ${idx}`, ...C.title);
 		},
 	};
@@ -184,7 +185,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 		draw: (display) => {
 			display.drawText(NOTE_COL, 2, "N", ...C.label);
 			display.drawText(VEL_COL, 2, "V", ...C.label);
-			display.drawText(INST_COL, 2, "I", ...C.label);
+			display.drawText(PATCH_COL, 2, "P", ...C.label);
 			display.drawText(FX1_COL, 2, "FX1", ...C.disabled);
 			display.drawText(FX2_COL, 2, "FX2", ...C.disabled);
 			display.drawText(FX3_COL, 2, "FX3", ...C.disabled);
@@ -212,7 +213,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 		enabled: false,
 		draw: (display) => {
 			for (let r = 0; r < NUM_STEPS; r++) {
-				const isPlayback = store.state.playing && r === store.state.playbackStep;
+				const isPlayback = state.playing && r === state.playbackStep;
 				const isMajor = r % 4 === 0;
 				if (isPlayback) {
 					display.addRect(0, GRID_ROW + r, 60, 1, ...C.playbackRow);
@@ -227,7 +228,7 @@ export function buildSequenceView(store: TrackerStore, setPath: (p: string[]) =>
 		id: "sequence",
 		col: 0, row: 0, width: 60, height: 25,
 		enabled: true,
-		children: [rowBgEl, titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(store.state)],
+		children: [rowBgEl, titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(state)],
 		draw: () => {},
 	};
 }

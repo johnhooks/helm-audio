@@ -14,6 +14,7 @@ import {
 	type Step,
 } from "@helm-audio/protocol";
 import { send, listen } from "@helm-audio/worklet";
+import type { Action } from "@helm-audio/types";
 import { MAX_PATTERNS, MAX_UNDO } from "./constants.ts";
 import { StepField, type TrackerState, type UndoGroup } from "./types.ts";
 
@@ -54,6 +55,37 @@ export class TrackerStore {
 		this.sendActivePattern();
 		this.sendBuses();
 		this.sendTempo();
+	}
+
+	// --- Action dispatch ---
+
+	dispatch(action: Action): void {
+		switch (action.type) {
+			case "setPage": this.setPage(action.page); break;
+			case "moveCursor": this.moveCursor(action.dRow, action.dCol, action.dField); break;
+			case "setCursor": this.setCursor(action.row, action.col, action.field); break;
+			case "play": this.play(); break;
+			case "stop": this.stop(); break;
+			case "togglePlay": this.togglePlay(); break;
+			case "restart": this.restart(); break;
+			case "setTempo": this.setTempo(action.bpm); break;
+			case "enterNote": this.enterNote(action.note); break;
+			case "noteOff": /* TODO: not implemented yet */ break;
+			case "deleteStep": this.deleteStep(); break;
+			case "setStep": this.setStep(action.patternIndex, action.trackIndex, action.stepIndex, action.step); break;
+			case "clearStep": this.clearStep(action.patternIndex, action.trackIndex, action.stepIndex); break;
+			case "toggleEditMode": this.toggleEditMode(); break;
+			case "setOctave": this.setOctave(action.octave); break;
+			case "setStepSize": this.setStepSize(action.size); break;
+			case "setCurrentPatchIndex": this.setCurrentPatchIndex(action.index); break;
+			case "setActivePattern": this.setActivePattern(action.index); break;
+			case "setCurrentBank": this.setCurrentBank(action.bank); break;
+			case "setPatch": this.setPatch(action.index, action.patch); break;
+			case "setPatchName": this.setPatchName(action.index, action.name); break;
+			case "setBuses": this.setBuses(action.buses); break;
+			case "undo": this.undo(); break;
+			case "redo": this.redo(); break;
+		}
 	}
 
 	// --- Transport ---
