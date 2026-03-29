@@ -12,6 +12,8 @@ packages/local/public/processor.js
 .rollup.cache
 
 .idea
+
 docs/plans/.wip
+docs/ideas/.wip
 
 .DS_Store
