@@ -35,6 +35,10 @@ export type Action =
 	| { type: "setActivePattern"; index: number }
 	| { type: "setCurrentBank"; bank: number }
 
+	// Chain editing
+	| { type: "setChainEntry"; row: number; track: number; patternIndex: number }
+	| { type: "clearChainEntry"; row: number; track: number }
+
 	// Patch management
 	| { type: "setPatch"; index: number; patch: Patch }
 	| { type: "setPatchName"; index: number; name: string }

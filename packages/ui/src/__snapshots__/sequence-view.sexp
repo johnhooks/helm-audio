@@ -102,5 +102,6 @@
     (F-fx3 26 18 5x1 :disabled))
   (transport 48 2 12x1 :disabled)
   (track-activity 48 4 12x8 :disabled)
+  (edit-status 48 13 12x1 :disabled)
   (keyboard 48 14 12x1 :disabled)
   (page-indicator 48 17 3x1 :disabled))

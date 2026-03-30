@@ -40,6 +40,15 @@ export function drawPageIndicator(display: DisplayList, state: TrackerState, row
 	}
 }
 
+/** Edit mode and octave display: E:ON O:4 */
+export function drawEditStatus(display: DisplayList, state: TrackerState, row: number): void {
+	const editColor = state.editMode ? C.accent : C.textDim;
+	display.drawText(R, row, "E:", ...C.label);
+	display.drawText(R + 2, row, state.editMode ? "ON" : "--", ...editColor);
+	display.drawText(R + 5, row, "O:", ...C.label);
+	display.drawText(R + 7, row, String(state.octave), ...C.textNormal);
+}
+
 /** Keyboard visual placeholder. */
 export function drawKeyboard(display: DisplayList, row: number): void {
 	display.drawText(R, row, `|||||||||`, ...C.textDim);
@@ -73,6 +82,12 @@ export function chromeElements(state: TrackerState): Element[] {
 			col: R, row: 4, width: 12, height: 8,
 			enabled: false,
 			draw: (display) => { drawTrackActivity(display, state, 4); },
+		},
+		{
+			id: "edit-status",
+			col: R, row: 13, width: 12, height: 1,
+			enabled: false,
+			draw: (display) => { drawEditStatus(display, state, 13); },
 		},
 		{
 			id: "keyboard",

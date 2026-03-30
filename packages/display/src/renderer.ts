@@ -74,6 +74,9 @@ export class Renderer {
 
 	private ready = false;
 
+	/** Called once after the font texture finishes loading. */
+	onReady?: () => void;
+
 	constructor(options: RendererOptions) {
 		this.canvas = options.canvas;
 		this.columns = options.columns;
@@ -105,6 +108,7 @@ export class Renderer {
 	private async loadFont(url: string): Promise<void> {
 		this.fontTexture = await loadFontTexture(this.gl, url);
 		this.ready = true;
+		this.onReady?.();
 	}
 
 	// --- Rect pass setup ---

@@ -6,6 +6,7 @@ import { dispatchKey, drawAll } from "./element.ts";
 import { buildPatternView } from "./pattern.ts";
 import { buildSequenceView } from "./sequence.ts";
 import { buildInstrumentView } from "./instrument.ts";
+import { HexEntry } from "./hex-input.ts";
 
 const PAGE_ORDER = [Page.Pattern, Page.Sequence, Page.Instrument];
 
@@ -34,6 +35,9 @@ export class Tracker {
 	private store: TrackerStore;
 	private view: Element;
 
+	/** Shared hex entry state for two-nibble byte fields. Reset on cursor move. */
+	readonly hexEntry = new HexEntry();
+
 	constructor(store: TrackerStore) {
 		this.store = store;
 		this.focusPath = DEFAULT_PATHS[store.state.page];
@@ -51,6 +55,12 @@ export class Tracker {
 		}
 		if (key === "Shift+ArrowRight") {
 			this.nextPage();
+			return true;
+		}
+
+		// Global: edit mode toggle
+		if (key === "Space") {
+			this.emit({ type: "toggleEditMode" });
 			return true;
 		}
 
@@ -100,6 +110,7 @@ export class Tracker {
 
 	private setPath = (path: string[]): void => {
 		this.focusPath = path;
+		this.hexEntry.reset();
 		this.dirty = true;
 	};
 
@@ -107,13 +118,13 @@ export class Tracker {
 		const { state } = this.store;
 		switch (state.page) {
 			case Page.Pattern:
-				return buildPatternView(state, this.emit, this.setPath);
+				return buildPatternView(state, this.emit, this.setPath, this.hexEntry);
 			case Page.Sequence:
-				return buildSequenceView(state, this.emit, this.setPath);
+				return buildSequenceView(state, this.emit, this.setPath, this.hexEntry);
 			case Page.Instrument:
 				return buildInstrumentView(state, this.emit, this.setPath);
 			default:
-				return buildSequenceView(state, this.emit, this.setPath);
+				return buildSequenceView(state, this.emit, this.setPath, this.hexEntry);
 		}
 	}
 }
@@ -125,6 +136,6 @@ function normalizeKey(e: KeyboardEvent): string {
 	if (e.ctrlKey) parts.push("Ctrl");
 	if (e.altKey) parts.push("Alt");
 	if (e.shiftKey) parts.push("Shift");
-	parts.push(e.key);
+	parts.push(e.code);
 	return parts.join("+");
 }

@@ -12,3 +12,4 @@ export {
 	DEFAULT_STEP_SIZE,
 	MAX_UNDO,
 } from "./constants.ts";
+export { OpfsStorage, extractProject, applyProject, type Storage, type ProjectData } from "./storage.ts";

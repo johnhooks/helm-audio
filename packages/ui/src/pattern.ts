@@ -2,6 +2,7 @@ import type { TrackerState, Action } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
+import { scancodeToHex, type HexEntry } from "./hex-input.ts";
 
 const GRID_ROW = 3; // first data row on screen
 const NUM_ROWS = 16;
@@ -20,7 +21,7 @@ function hexRow(n: number): string {
  *   Rows 3-18: 16 rows x 8 track chain grid
  *   Right panel: track activity, keyboard, PSI (chrome)
  */
-export function buildPatternView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
+export function buildPatternView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void, hexEntry?: HexEntry): Element {
 	// --- Grid cell elements ---
 	const gridChildren: Element[] = [];
 
@@ -37,8 +38,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 				enabled: true,
 				draw: (display, focused) => {
 					const idx = row * NUM_TRACKS + track;
-					const val = idx < state.chain.length ? hexRow(state.chain[idx].patternIndex) : "--";
-					const color = focused ? C.textHighlight : C.disabled;
+					const entry = idx < state.chain.length ? state.chain[idx] : null;
+					const hasValue = entry !== null && entry.patternIndex >= 0;
+					const val = hasValue ? hexRow(entry.patternIndex) : "--";
+					const color = focused ? C.textHighlight : hasValue ? C.textNormal : C.disabled;
 					display.drawText(3 + track * 3, GRID_ROW + row, val, ...color);
 				},
 			});
@@ -66,7 +69,32 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 				case "ArrowDown": newR = Math.min(NUM_ROWS - 1, r + 1); break;
 				case "ArrowLeft": newT = Math.max(0, t - 1); break;
 				case "ArrowRight": newT = Math.min(NUM_TRACKS - 1, t + 1); break;
-				default: return false;
+				default: {
+					if (!state.editMode) return false;
+
+					// --- Hex entry (clamped to 0x0F) ---
+					if (hexEntry) {
+						const digit = scancodeToHex(key);
+						if (digit !== null) {
+							const { value, complete } = hexEntry.feed(digit);
+							const clamped = Math.min(value, 0x0f);
+							emit({ type: "setChainEntry", row: r, track: t, patternIndex: clamped });
+							if (complete) {
+								const nextR = Math.min(r + 1, NUM_ROWS - 1);
+								setPath(["pattern", "grid", `${hexRow(nextR)}-${String(t)}`]);
+							}
+							return true;
+						}
+					}
+
+					// --- Delete ---
+					if (key === "Delete") {
+						emit({ type: "clearChainEntry", row: r, track: t });
+						return true;
+					}
+
+					return false;
+				}
 			}
 
 			const newId = `${hexRow(newR)}-${String(newT)}`;

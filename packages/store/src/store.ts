@@ -78,6 +78,8 @@ export class TrackerStore {
 			case "setOctave": this.setOctave(action.octave); break;
 			case "setStepSize": this.setStepSize(action.size); break;
 			case "setCurrentPatchIndex": this.setCurrentPatchIndex(action.index); break;
+			case "setChainEntry": this.setChainEntry(action.row, action.track, action.patternIndex); break;
+			case "clearChainEntry": this.clearChainEntry(action.row, action.track); break;
 			case "setActivePattern": this.setActivePattern(action.index); break;
 			case "setCurrentBank": this.setCurrentBank(action.bank); break;
 			case "setPatch": this.setPatch(action.index, action.patch); break;
@@ -256,6 +258,26 @@ export class TrackerStore {
 	setPatchName(index: number, name: string): void {
 		if (index < this.state.patchNames.length) {
 			this.state.patchNames[index] = name;
+			this.markDirty();
+		}
+	}
+
+	// --- Chain editing ---
+
+	setChainEntry(row: number, track: number, patternIndex: number): void {
+		const idx = row * 8 + track;
+		// Grow chain array if needed
+		while (this.state.chain.length <= idx) {
+			this.state.chain.push({ patternIndex: -1 });
+		}
+		this.state.chain[idx] = { patternIndex };
+		this.markDirty();
+	}
+
+	clearChainEntry(row: number, track: number): void {
+		const idx = row * 8 + track;
+		if (idx < this.state.chain.length) {
+			this.state.chain[idx] = { patternIndex: -1 };
 			this.markDirty();
 		}
 	}

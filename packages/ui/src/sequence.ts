@@ -1,7 +1,9 @@
-import { TrigType, StepField, type TrackerState, type Action, type NoteOnTrig, type Trig } from "@helm-audio/types";
+import { TrigType, StepField, type TrackerState, type Action, type NoteOnTrig, type Trig, type Step } from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
+import { scancodeToNote } from "./keys.ts";
+import { scancodeToHex, type HexEntry } from "./hex-input.ts";
 
 const GRID_ROW = 3;
 const NUM_STEPS = 16;
@@ -41,7 +43,7 @@ function isNoteOn(trig: Trig): trig is NoteOnTrig {
  *   Row 2: Column headers (N V I FX1 FX2 FX3)
  *   Rows 3-18: 16 step rows with fields
  */
-export function buildSequenceView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
+export function buildSequenceView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void, hexEntry?: HexEntry): Element {
 	const fields = ["note", "vel", "patch", "fx1", "fx2", "fx3"];
 	const fieldCols = [NOTE_COL, VEL_COL, PATCH_COL, FX1_COL, FX2_COL, FX3_COL];
 	const fieldWidths = [3, 2, 2, 5, 5, 5];
@@ -91,7 +93,7 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 							break;
 						case "vel":
 							if (trig && isNoteOn(trig)) {
-								text = hexByte(Math.round(trig.velocity * 127));
+								text = hexByte(trig.velocity);
 								color = focused ? C.textHighlight : C.velocity;
 							} else {
 								text = "--";
@@ -135,6 +137,7 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 			let newR = r;
 			let newF = fIdx;
 
+			// --- Navigation ---
 			switch (key) {
 				case "ArrowUp": newR = Math.max(0, r - 1); break;
 				case "ArrowDown": newR = Math.min(NUM_STEPS - 1, r + 1); break;
@@ -150,7 +153,54 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 					if (next < fields.length) newF = next;
 					break;
 				}
-				default: return false;
+				default: {
+					if (!state.editMode) return false;
+
+					// --- Note entry (note field only) ---
+					if (fieldName === "note") {
+						const note = scancodeToNote(key, state.octave);
+						if (note !== null) {
+							emit({ type: "enterNote", note });
+							const newRow = state.cursor.row;
+							setPath(["sequence", "grid", `${hexNibble(newRow)}-note`]);
+							return true;
+						}
+					}
+
+					// --- Hex entry (vel, patch fields) ---
+					if (hexEntry && (fieldName === "vel" || fieldName === "patch")) {
+						const digit = scancodeToHex(key);
+						if (digit !== null) {
+							const { value, complete } = hexEntry.feed(digit);
+							const trackIdx = state.cursor.col;
+							const existing = pattern?.tracks[trackIdx]?.events.find(e => e.stepIndex === r);
+
+							if (fieldName === "vel" && existing?.trig?.type === TrigType.NoteOn) {
+								const clamped = Math.min(value, 0x7f);
+								const step: Step = {
+									...existing,
+									trig: { ...existing.trig, velocity: clamped },
+								};
+								emit({ type: "setStep", patternIndex: state.activePatternIndex, trackIndex: trackIdx, stepIndex: r, step });
+							}
+
+							if (complete) {
+								const newRow = Math.min(r + state.stepSize, NUM_STEPS - 1);
+								setPath(["sequence", "grid", `${hexNibble(newRow)}-${fieldName}`]);
+								emit({ type: "setCursor", row: newRow, col: state.cursor.col, field: fieldToStepField[fIdx] ?? StepField.Note });
+							}
+							return true;
+						}
+					}
+
+					// --- Delete (any field) ---
+					if (key === "Delete") {
+						emit({ type: "deleteStep" });
+						return true;
+					}
+
+					return false;
+				}
 			}
 
 			const newId = `${hexNibble(newR)}-${fields[newF]}`;
@@ -198,7 +248,7 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 			for (let r = 0; r < NUM_STEPS; r++) {
 				const isMajor = r % 4 === 0;
 				const color = isMajor ? C.textNormal : C.textDim;
-				display.drawText(0, GRID_ROW + r, hexNibble(r), ...color);
+				display.drawText(0, GRID_ROW + r, hexByte(r), ...color);
 			}
 		},
 	};
