@@ -27,6 +27,12 @@ render: native
 wasm:
 	source $(EMSDK_ENV) && cmake --preset wasm && cmake --build build/wasm
 	cp packages/worklet/helm_engine.d.mts build/wasm/helm_engine.d.mts
+	cp packages/voice/helm_voice.d.mts build/wasm/helm_voice.d.mts
+
+.PHONY: wasm-voice
+wasm-voice:
+	source $(EMSDK_ENV) && cmake --preset wasm && cmake --build build/wasm --target helm_voice
+	cp packages/voice/helm_voice.d.mts build/wasm/helm_voice.d.mts
 
 # --- JS/TS ---
 
@@ -43,8 +49,12 @@ test-ts:
 .PHONY: dev-assets
 dev-assets: wasm
 	cd packages/worklet && bun run build
+	cd packages/voice && bun run build
+	cd packages/sequencer && bun run build
 	mkdir -p $(LOCAL_PUBLIC)
 	cp packages/worklet/dist/processor.js $(LOCAL_PUBLIC)/processor.js
+	cp packages/voice/dist/processor.js $(LOCAL_PUBLIC)/voice-processor.js
+	cp packages/sequencer/dist/worker.js $(LOCAL_PUBLIC)/sequencer-worker.js
 
 .PHONY: dev
 dev: dev-assets
@@ -56,3 +66,5 @@ dev: dev-assets
 clean:
 	rm -rf build/native-debug build/native-release build/wasm
 	rm -rf packages/local/public/processor.js
+	rm -rf packages/local/public/voice-processor.js
+	rm -rf packages/local/public/sequencer-worker.js

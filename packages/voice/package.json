@@ -1,0 +1,25 @@
+{
+  "name": "@helm-audio/voice",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./processor": "./dist/processor.js"
+  },
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "dependencies": {
+    "@helm-audio/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@types/audioworklet": "^0.0.60",
+    "rollup": "^4.60.0",
+    "rollup-plugin-esbuild": "^6.2.1"
+  }
+}
