@@ -1,5 +1,12 @@
 import { Renderer, DisplayList, FONT_SMALL } from "@helm-audio/display";
-import { TrackerStore, createInitialState, OpfsStorage, extractProject, applyProject } from "@helm-audio/store";
+import {
+	TrackerStore,
+	createInitialState,
+	OpfsStorage,
+	extractProject,
+	applyProject,
+} from "@helm-audio/store";
+import { Orchestrator } from "@helm-audio/synth";
 import { Tracker } from "@helm-audio/ui";
 
 // --- Grid setup ---
@@ -33,6 +40,26 @@ async function loadProject(): Promise<TrackerStore> {
 
 async function boot(): Promise<void> {
 	const store = await loadProject();
+
+	// Boot audio engine
+	const orchestrator = await Orchestrator.create({
+		voiceProcessorUrl: "/voice-processor.js",
+		workerUrl: "/sequencer-worker.js",
+	});
+	store.connectOrchestrator(orchestrator);
+	store.syncAll();
+
+	// Resume AudioContext on first user interaction (browser policy)
+	const resumeOnce = () => {
+		if (orchestrator.context.state === "suspended") {
+			void orchestrator.context.resume();
+		}
+		document.removeEventListener("keydown", resumeOnce);
+		document.removeEventListener("mousedown", resumeOnce);
+	};
+	document.addEventListener("keydown", resumeOnce);
+	document.addEventListener("mousedown", resumeOnce);
+
 	const ui = new Tracker(store);
 
 	// --- Auto-save (debounced) ---
@@ -56,7 +83,9 @@ async function boot(): Promise<void> {
 
 	// --- Render loop ---
 
-	renderer.onReady = () => { ui.dirty = true; };
+	renderer.onReady = () => {
+		ui.dirty = true;
+	};
 	renderer.resize();
 	window.addEventListener("resize", () => {
 		renderer.resize();

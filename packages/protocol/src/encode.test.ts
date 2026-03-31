@@ -7,6 +7,11 @@ import {
 	encodeTransport,
 	encodeTempo,
 	encodeTrigger,
+	encodeVoicePatch,
+	encodeVoiceTrig,
+	encodeVoiceNoteOn,
+	encodeVoiceNoteOff,
+	encodeVoiceFadeOut,
 } from "./encode.ts";
 import {
 	EffectType,
@@ -15,8 +20,10 @@ import {
 	ParamId,
 	TransportCommand,
 	TrigType,
+	VoiceMessageType,
 } from "./types.ts";
 import type { BusSetup, Patch, PatternData, TriggerMessage } from "./types.ts";
+import type { fm4 } from "@helm-audio/types";
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -420,6 +427,241 @@ describe("encodeTempo", () => {
 		expect(r.read(u8)).toBe(MessageType.Tempo);
 		expect(r.read(f32)).toBeCloseTo(140.0);
 		expect(buf.byteLength).toBe(5);
+	});
+});
+
+// --- fm4 voice encoder helpers ------------------------------------------------
+
+function makeFm4Patch(overrides?: Partial<fm4.Patch>): fm4.Patch {
+	return {
+		operators: [
+			{ ratio: 1.0, detune: 0, level: 0.9 },
+			{ ratio: 2.0, detune: 0.5, level: 0.8 },
+			{ ratio: 3.0, detune: -1.0, level: 0.7 },
+			{ ratio: 4.0, detune: 0, level: 0.6 },
+		],
+		algorithm: 4,
+		index: 1.5,
+		feedback: 0.2,
+		envA: { attack: 0.01, decay: 0.2, sustain: 0.8, release: 0.3 },
+		envB: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.4 },
+		ampEnv: { attack: 0.001, decay: 0.1, sustain: 0.6, release: 0.5 },
+		filterFreq: 4000,
+		filterRes: 0.3,
+		sends: [0.1, 0.2, 0.3, 0.4],
+		lfos: [
+			{ rate: 1.0, waveform: LfoWaveform.Sine, routes: [] },
+			{ rate: 2.0, waveform: LfoWaveform.Sine, routes: [] },
+		],
+		...overrides,
+	};
+}
+
+// --- Voice encoder tests ------------------------------------------------------
+
+describe("encodeVoicePatch", () => {
+	it("encodes message type and operators", () => {
+		const patch = makeFm4Patch();
+		const buf = encodeVoicePatch(patch);
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.LoadPatch);
+
+		// 4 operators: ratio, detune, level each
+		expect(r.read(f32)).toBeCloseTo(1.0);
+		expect(r.read(f32)).toBeCloseTo(0);
+		expect(r.read(f32)).toBeCloseTo(0.9);
+
+		expect(r.read(f32)).toBeCloseTo(2.0);
+		expect(r.read(f32)).toBeCloseTo(0.5);
+		expect(r.read(f32)).toBeCloseTo(0.8);
+
+		expect(r.read(f32)).toBeCloseTo(3.0);
+		expect(r.read(f32)).toBeCloseTo(-1.0);
+		expect(r.read(f32)).toBeCloseTo(0.7);
+
+		expect(r.read(f32)).toBeCloseTo(4.0);
+		expect(r.read(f32)).toBeCloseTo(0);
+		expect(r.read(f32)).toBeCloseTo(0.6);
+	});
+
+	it("encodes algorithm, index, feedback after operators", () => {
+		const patch = makeFm4Patch();
+		const buf = encodeVoicePatch(patch);
+		const r = reader(buf);
+
+		r.read(u8); // type
+		for (let i = 0; i < 12; i++) r.read(f32); // 4 ops × 3 fields
+
+		expect(r.read(u8)).toBe(4); // algorithm
+		expect(r.read(f32)).toBeCloseTo(1.5); // index
+		expect(r.read(f32)).toBeCloseTo(0.2); // feedback
+	});
+
+	it("encodes three envelopes in order", () => {
+		const patch = makeFm4Patch();
+		const buf = encodeVoicePatch(patch);
+		const r = reader(buf);
+
+		r.read(u8); // type
+		for (let i = 0; i < 12; i++) r.read(f32); // operators
+		r.read(u8); // algorithm
+		r.read(f32); // index
+		r.read(f32); // feedback
+
+		// envA
+		expect(r.read(f32)).toBeCloseTo(0.01);
+		expect(r.read(f32)).toBeCloseTo(0.2);
+		expect(r.read(f32)).toBeCloseTo(0.8);
+		expect(r.read(f32)).toBeCloseTo(0.3);
+
+		// envB
+		expect(r.read(f32)).toBeCloseTo(0.02);
+		expect(r.read(f32)).toBeCloseTo(0.3);
+		expect(r.read(f32)).toBeCloseTo(0.7);
+		expect(r.read(f32)).toBeCloseTo(0.4);
+
+		// ampEnv
+		expect(r.read(f32)).toBeCloseTo(0.001);
+		expect(r.read(f32)).toBeCloseTo(0.1);
+		expect(r.read(f32)).toBeCloseTo(0.6);
+		expect(r.read(f32)).toBeCloseTo(0.5);
+	});
+
+	it("encodes filter, sends, and LFOs", () => {
+		const patch = makeFm4Patch({
+			lfos: [
+				{
+					rate: 0.5,
+					waveform: LfoWaveform.Triangle,
+					routes: [{ target: 0, depth: 200.0 }],
+				},
+				{ rate: 3.0, waveform: LfoWaveform.Saw, routes: [] },
+			],
+		});
+		const buf = encodeVoicePatch(patch);
+		const r = reader(buf);
+
+		r.read(u8); // type
+		for (let i = 0; i < 12; i++) r.read(f32); // operators
+		r.read(u8); // algorithm
+		r.read(f32); // index
+		r.read(f32); // feedback
+		for (let i = 0; i < 12; i++) r.read(f32); // 3 envelopes
+
+		expect(r.read(f32)).toBeCloseTo(4000); // filterFreq
+		expect(r.read(f32)).toBeCloseTo(0.3); // filterRes
+
+		expect(r.read(f32)).toBeCloseTo(0.1); // send0
+		expect(r.read(f32)).toBeCloseTo(0.2);
+		expect(r.read(f32)).toBeCloseTo(0.3);
+		expect(r.read(f32)).toBeCloseTo(0.4);
+
+		// LFO 0
+		expect(r.read(f32)).toBeCloseTo(0.5);
+		expect(r.read(u8)).toBe(LfoWaveform.Triangle);
+		expect(r.read(u8)).toBe(1); // 1 route
+		expect(r.read(u8)).toBe(0); // FilterFreq
+		expect(r.read(f32)).toBeCloseTo(200.0);
+
+		// LFO 1
+		expect(r.read(f32)).toBeCloseTo(3.0);
+		expect(r.read(u8)).toBe(LfoWaveform.Saw);
+		expect(r.read(u8)).toBe(0); // no routes
+	});
+});
+
+describe("encodeVoiceTrig", () => {
+	it("encodes NoteOn with no locks", () => {
+		const buf = encodeVoiceTrig({
+			trig: { type: TrigType.NoteOn, note: 60, velocity: 100 },
+		});
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.Trig);
+		expect(r.read(u8)).toBe(0x01); // HAS_TRIG only
+		expect(r.read(u8)).toBe(TrigType.NoteOn);
+		expect(r.read(u8)).toBe(60);
+		expect(r.read(u8)).toBe(100);
+	});
+
+	it("encodes trig with locks", () => {
+		const buf = encodeVoiceTrig({
+			trig: { type: TrigType.NoteOn, note: 64, velocity: 127 },
+			locks: [
+				{ param: ParamId.FilterFreq, value: 2000.0 },
+				{ param: ParamId.Index, value: 3.0 },
+			],
+		});
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.Trig);
+		expect(r.read(u8)).toBe(0x03); // HAS_TRIG | HAS_LOCKS
+		expect(r.read(u8)).toBe(TrigType.NoteOn);
+		expect(r.read(u8)).toBe(64);
+		expect(r.read(u8)).toBe(127);
+
+		expect(r.read(u8)).toBe(2); // lock count
+		expect(r.read(u8)).toBe(ParamId.FilterFreq);
+		expect(r.read(f32)).toBeCloseTo(2000.0);
+		expect(r.read(u8)).toBe(ParamId.Index);
+		expect(r.read(f32)).toBeCloseTo(3.0);
+	});
+
+	it("encodes locks-only (no trig)", () => {
+		const buf = encodeVoiceTrig({
+			locks: [{ param: ParamId.FilterFreq, value: 1000.0 }],
+		});
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.Trig);
+		expect(r.read(u8)).toBe(0x02); // HAS_LOCKS only
+		expect(r.read(u8)).toBe(1);
+		expect(r.read(u8)).toBe(ParamId.FilterFreq);
+		expect(r.read(f32)).toBeCloseTo(1000.0);
+	});
+
+	it("encodes NoteOff trig", () => {
+		const buf = encodeVoiceTrig({
+			trig: { type: TrigType.NoteOff },
+		});
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.Trig);
+		expect(r.read(u8)).toBe(0x01); // HAS_TRIG
+		expect(r.read(u8)).toBe(TrigType.NoteOff);
+	});
+});
+
+describe("encodeVoiceNoteOn", () => {
+	it("encodes note and velocity", () => {
+		const buf = encodeVoiceNoteOn(60, 127);
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.NoteOn);
+		expect(r.read(u8)).toBe(60);
+		expect(r.read(u8)).toBe(127);
+		expect(buf.byteLength).toBe(3);
+	});
+});
+
+describe("encodeVoiceNoteOff", () => {
+	it("encodes single byte", () => {
+		const buf = encodeVoiceNoteOff();
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.NoteOff);
+		expect(buf.byteLength).toBe(1);
+	});
+});
+
+describe("encodeVoiceFadeOut", () => {
+	it("encodes single byte", () => {
+		const buf = encodeVoiceFadeOut();
+		const r = reader(buf);
+
+		expect(r.read(u8)).toBe(VoiceMessageType.FadeOut);
+		expect(buf.byteLength).toBe(1);
 	});
 });
 

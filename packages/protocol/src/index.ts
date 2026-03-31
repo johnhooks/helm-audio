@@ -6,13 +6,22 @@ export {
 	encodeTransport,
 	encodeTempo,
 	encodeTrigger,
+	encodeVoiceInit,
+	encodeVoicePatch,
+	encodeVoiceTrig,
+	encodeVoiceNoteOn,
+	encodeVoiceNoteOff,
+	encodeVoiceFadeOut,
 } from "./encode.ts";
+
+export type { VoiceTrig } from "./encode.ts";
 
 export { decodeStateReport, type StateReport } from "./decode.ts";
 
 export {
 	MessageType,
 	TransportCommand,
+	VoiceMessageType,
 	LfoWaveform,
 	ParamId,
 	TrigType,

@@ -51,3 +51,14 @@ export interface TriggerMessage {
 	trig: Trig;
 	patchIndex?: number;
 }
+
+// --- FM4 voice worklet protocol ------------------------------------------
+
+export enum VoiceMessageType {
+	Init = 0x00,
+	LoadPatch = 0x01,
+	Trig = 0x02,
+	NoteOn = 0x03,
+	NoteOff = 0x04,
+	FadeOut = 0x05,
+}

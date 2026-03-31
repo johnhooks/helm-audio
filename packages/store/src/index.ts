@@ -1,5 +1,5 @@
 export { TrackerStore } from "./store.ts";
-export { createInitialState, DEFAULT_PATCH, DEFAULT_OPERATOR, DEFAULT_LFO } from "./defaults.ts";
+export { createInitialState } from "./defaults.ts";
 export {
 	PATTERNS_PER_BANK,
 	NUM_BANKS,
@@ -12,4 +12,10 @@ export {
 	DEFAULT_STEP_SIZE,
 	MAX_UNDO,
 } from "./constants.ts";
-export { OpfsStorage, extractProject, applyProject, type Storage, type ProjectData } from "./storage.ts";
+export {
+	OpfsStorage,
+	extractProject,
+	applyProject,
+	type Storage,
+	type ProjectData,
+} from "./storage.ts";

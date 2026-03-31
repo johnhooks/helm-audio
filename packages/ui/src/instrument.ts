@@ -12,7 +12,10 @@ function fmtFloat(n: number, decimals = 2): string {
 }
 
 function hexByte(n: number): string {
-	return Math.round(n * 255).toString(16).toUpperCase().padStart(2, "0");
+	return Math.round(n * 255)
+		.toString(16)
+		.toUpperCase()
+		.padStart(2, "0");
 }
 
 /**
@@ -26,14 +29,21 @@ function hexByte(n: number): string {
  *   Row 13-19: MOD1-4 + mixer column (AMP/LIM/PAN/DRY/MFX/DEL/REV)
  *   Row 16-18: FILTER/CUTOFF/RES
  */
-export function buildInstrumentView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void): Element {
+export function buildInstrumentView(
+	state: TrackerState,
+	emit: (a: Action) => void,
+	setPath: (p: string[]) => void,
+): Element {
 	const getPatch = () => state.patches[state.currentPatchIndex] ?? state.patches[0];
 
 	// --- Header fields ---
 	const headerFields: Element[] = [
 		{
 			id: "type",
-			col: 8, row: HEADER_ROW, width: 8, height: 1,
+			col: 8,
+			row: HEADER_ROW,
+			width: 8,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const color = focused ? C.textHighlight : C.value;
@@ -42,7 +52,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 		},
 		{
 			id: "name",
-			col: 8, row: HEADER_ROW + 1, width: 14, height: 1,
+			col: 8,
+			row: HEADER_ROW + 1,
+			width: 14,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const name = state.patchNames[state.currentPatchIndex] ?? "init";
@@ -55,12 +68,15 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 
 	const header: Element = {
 		id: "header",
-		col: 0, row: HEADER_ROW, width: 44, height: 3,
+		col: 0,
+		row: HEADER_ROW,
+		width: 44,
+		height: 3,
 		enabled: true,
 		children: headerFields,
 		onKey: (key, path) => {
 			const currentId = path[path.length - 1];
-			const ids = headerFields.filter(f => f.enabled).map(f => f.id);
+			const ids = headerFields.filter((f) => f.enabled).map((f) => f.id);
 			const idx = ids.indexOf(currentId);
 			if (idx === -1) return false;
 
@@ -79,7 +95,8 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 					}
 					return true;
 				}
-				default: return false;
+				default:
+					return false;
 			}
 		},
 		draw: () => {},
@@ -89,7 +106,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	const paramFields: Element[] = [
 		{
 			id: "algo",
-			col: 8, row: PARAMS_ROW, width: 14, height: 1,
+			col: 8,
+			row: PARAMS_ROW,
+			width: 14,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const color = focused ? C.textHighlight : C.value;
@@ -104,7 +124,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 
 		paramFields.push({
 			id: `op${String(op)}-ratio`,
-			col: baseCol, row: PARAMS_ROW + 2, width: 5, height: 1,
+			col: baseCol,
+			row: PARAMS_ROW + 2,
+			width: 5,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const patch = getPatch();
@@ -116,14 +139,16 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 
 		paramFields.push({
 			id: `op${String(op)}-level`,
-			col: baseCol, row: PARAMS_ROW + 3, width: 5, height: 1,
+			col: baseCol,
+			row: PARAMS_ROW + 3,
+			width: 5,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const patch = getPatch();
 				const level = hexByte(patch.operators[op].level);
-				const fb = hexByte(patch.operators[op].feedback);
 				const color = focused ? C.textHighlight : C.value;
-				display.drawText(baseCol, PARAMS_ROW + 3, `${level}/${fb}`, ...color);
+				display.drawText(baseCol, PARAMS_ROW + 3, `${level}   `, ...color);
 			},
 		});
 	}
@@ -132,23 +157,29 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	for (let m = 0; m < 2; m++) {
 		paramFields.push({
 			id: `mod${String(m + 1)}`,
-			col: 8, row: PARAMS_ROW + 4 + m, width: 5, height: 1,
+			col: 8,
+			row: PARAMS_ROW + 4 + m,
+			width: 5,
+			height: 1,
 			enabled: false,
 			draw: (display) => {
 				const r = PARAMS_ROW + 4 + m;
-					display.drawText(8, r, "-----  -----", ...C.disabled);
+				display.drawText(8, r, "-----  -----", ...C.disabled);
 			},
 		});
 	}
 
 	const params: Element = {
 		id: "params",
-		col: 0, row: PARAMS_ROW, width: 28, height: 8,
+		col: 0,
+		row: PARAMS_ROW,
+		width: 28,
+		height: 8,
 		enabled: true,
 		children: paramFields,
 		onKey: (key, path) => {
 			const currentId = path[path.length - 1];
-			const enabledIds = paramFields.filter(f => f.enabled).map(f => f.id);
+			const enabledIds = paramFields.filter((f) => f.enabled).map((f) => f.id);
 			const idx = enabledIds.indexOf(currentId);
 			if (idx === -1) return false;
 
@@ -169,7 +200,8 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 					}
 					return true;
 				}
-				default: return false;
+				default:
+					return false;
 			}
 		},
 		draw: () => {},
@@ -196,7 +228,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	for (const mr of mixerRows) {
 		mixerFields.push({
 			id: mr.id,
-			col: MIXER_COL + 4, row: mr.row, width: 7, height: 1,
+			col: MIXER_COL + 4,
+			row: mr.row,
+			width: 7,
+			height: 1,
 			enabled: false,
 			draw: (display) => {
 				let val = "00";
@@ -211,17 +246,27 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	for (const fr of filterRows) {
 		mixerFields.push({
 			id: fr.id,
-			col: 8, row: fr.row, width: 10, height: 1,
+			col: 8,
+			row: fr.row,
+			width: 10,
+			height: 1,
 			enabled: true,
 			draw: (display, focused) => {
 				const patch = getPatch();
 				let val: string;
 				const color = focused ? C.textHighlight : C.value;
 				switch (fr.id) {
-					case "filter": val = "00 OFF"; break;
-					case "cutoff": val = hexByte(patch.filterFreq / 20000); break;
-					case "res": val = hexByte(patch.filterRes); break;
-					default: val = "00";
+					case "filter":
+						val = "00 OFF";
+						break;
+					case "cutoff":
+						val = hexByte(patch.filterFreq / 20000);
+						break;
+					case "res":
+						val = hexByte(patch.filterRes);
+						break;
+					default:
+						val = "00";
 				}
 				display.drawText(8, fr.row, val, ...color);
 			},
@@ -230,12 +275,15 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 
 	const mixer: Element = {
 		id: "mixer",
-		col: MIXER_COL, row: 7, width: 16, height: 12,
+		col: MIXER_COL,
+		row: 7,
+		width: 16,
+		height: 12,
 		enabled: true,
 		children: mixerFields,
 		onKey: (key, path) => {
 			const currentId = path[path.length - 1];
-			const enabledIds = mixerFields.filter(f => f.enabled).map(f => f.id);
+			const enabledIds = mixerFields.filter((f) => f.enabled).map((f) => f.id);
 			const idx = enabledIds.indexOf(currentId);
 			if (idx === -1) return false;
 
@@ -244,7 +292,7 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 					if (idx > 0) {
 						setPath(["instrument", "mixer", enabledIds[idx - 1]]);
 					} else {
-						const pEnabled = paramFields.filter(f => f.enabled);
+						const pEnabled = paramFields.filter((f) => f.enabled);
 						setPath(["instrument", "params", pEnabled[pEnabled.length - 1].id]);
 					}
 					return true;
@@ -255,7 +303,8 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 					}
 					return true;
 				}
-				default: return false;
+				default:
+					return false;
 			}
 		},
 		draw: () => {},
@@ -264,7 +313,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	// --- Title ---
 	const titleEl: Element = {
 		id: "title",
-		col: 0, row: 0, width: 10, height: 1,
+		col: 0,
+		row: 0,
+		width: 10,
+		height: 1,
 		enabled: false,
 		draw: (display) => {
 			const idx = state.currentPatchIndex.toString(16).toUpperCase().padStart(2, "0");
@@ -275,7 +327,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 	// --- Static labels ---
 	const labelsEl: Element = {
 		id: "labels",
-		col: 0, row: 0, width: 44, height: 20,
+		col: 0,
+		row: 0,
+		width: 44,
+		height: 20,
 		enabled: false,
 		draw: (display) => {
 			display.drawText(0, HEADER_ROW, "TYPE", ...C.label);
@@ -314,7 +369,10 @@ export function buildInstrumentView(state: TrackerState, emit: (a: Action) => vo
 
 	return {
 		id: "instrument",
-		col: 0, row: 0, width: 60, height: 25,
+		col: 0,
+		row: 0,
+		width: 60,
+		height: 25,
 		enabled: true,
 		children: [titleEl, labelsEl, header, params, mixer, ...chromeElements(state)],
 		draw: () => {},

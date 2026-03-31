@@ -64,6 +64,6 @@ describe("HexEntry", () => {
 		const entry = new HexEntry();
 		entry.feed(15);
 		const result = entry.feed(15);
-		expect(result).toEqual({ value: 0xFF, complete: true });
+		expect(result).toEqual({ value: 0xff, complete: true });
 	});
 });

@@ -6,76 +6,82 @@
  *
  * Message flow:
  *   Main → Worker (controlPort):
- *     loadPattern, setTempo, transport
+ *     loadPattern, setTempo, transport, setPatchBank
  *   Worker → Voice worklets (voicePorts):
- *     noteOn, noteOff, fadeOut, loadPatch, paramLock
+ *     binary ArrayBuffers (VoiceMessageType protocol)
  *   Worker → Main (controlPort):
- *     stepReport
+ *     stepReport, stopped
  */
 
 import { assert } from "@helm-audio/lib";
-import type { Patch } from "@helm-audio/types";
-import type { InitMessage, ControlMessage, VoiceMessage } from "./messages.ts";
-import { Sequencer, TICKS_PER_STEP, type SequencerListener } from "./sequencer.ts";
+import { encodeVoicePatch, encodeVoiceTrig, encodeVoiceNoteOff } from "@helm-audio/protocol";
+import type { PatternData } from "@helm-audio/types";
+import type { InitMessage, ControlMessage } from "./messages.ts";
+import { Sequencer, type SequencerListener } from "./sequencer.ts";
 import { Clock } from "./clock.ts";
 
 function boot(init: InitMessage): void {
 	const { controlPort, voicePorts, fxPorts: _fxPorts } = init;
 
-	// --- Patch bank (for loadPatch dispatch) ---
+	// --- Patch bank (pre-encoded for fast dispatch) ---
 
-	let patchBank: Patch[] = [];
+	let encodedPatches: ArrayBuffer[] = [];
+	const trackPatch: number[] = new Array<number>(voicePorts.length).fill(-1);
 
 	// --- Helpers ---
 
-	function sendVoice(track: number, msg: VoiceMessage): void {
-		assert(voicePorts[track], `no voice port for track ${track}`).postMessage(msg);
+	function sendVoice(track: number, buf: ArrayBuffer): void {
+		assert(voicePorts[track], `no voice port for track ${String(track)}`).postMessage(buf, [buf]);
+	}
+
+	/**
+	 * Push required patches to voices for a pattern. Scans each track for
+	 * the first patchIndex, falling back to patch 0.
+	 */
+	function primeVoices(pattern: PatternData): void {
+		for (let t = 0; t < pattern.tracks.length; t++) {
+			let patchIndex = 0;
+			for (const step of pattern.tracks[t].events) {
+				if (step.patchIndex !== undefined) {
+					patchIndex = step.patchIndex;
+					break;
+				}
+			}
+			listener.onLoadPatch(t, patchIndex);
+		}
 	}
 
 	// --- Listener: routes sequencer events to voice worklets ---
 
 	const listener: SequencerListener = {
-		onNoteOn(track, note, velocity) {
-			sendVoice(track, { type: "noteOn", note, velocity });
-		},
-		onNoteOff(track) {
-			sendVoice(track, { type: "noteOff" });
-		},
-		onFadeOut(track) {
-			sendVoice(track, { type: "fadeOut" });
-		},
 		onLoadPatch(track, patchIndex) {
-			const patch = assert(patchBank[patchIndex], `no patch at index ${patchIndex}`);
-			sendVoice(track, { type: "loadPatch", patch });
+			if (trackPatch[track] === patchIndex) return;
+			const buf = assert(encodedPatches[patchIndex], `no patch at index ${String(patchIndex)}`);
+			sendVoice(track, buf.slice(0));
+			trackPatch[track] = patchIndex;
 		},
-		onParamLock(track, lock) {
-			sendVoice(track, { type: "paramLock", param: lock.param, value: lock.value });
+		onTrig(track, trig, locks) {
+			sendVoice(
+				track,
+				encodeVoiceTrig({
+					trig,
+					locks: locks?.map((l) => ({ param: l.param, value: l.value })),
+				}),
+			);
 		},
 	};
 
 	// --- Sequencer + clock ---
 
 	const sequencer = new Sequencer(listener);
-	let lastReportedStep = -1;
 
 	const clock = new Clock({
 		onTick() {
 			sequencer.advance(1);
 		},
 		onStep() {
-			const tick = sequencer.getTick();
-			const step = Math.floor(tick / TICKS_PER_STEP);
-			if (step !== lastReportedStep) {
-				lastReportedStep = step;
-				const pattern = sequencer.getPattern();
-				const trackActivity: boolean[] = [];
-				if (pattern) {
-					for (let i = 0; i < pattern.tracks.length; i++) {
-						trackActivity.push(sequencer.getTrackCursor(i) >= 0);
-					}
-				}
-				controlPort.postMessage({ type: "stepReport", step, trackActivity });
-			}
+			const step = sequencer.getStep();
+			controlPort.postMessage({ type: "stepReport", step });
 		},
 	});
 
@@ -90,18 +96,24 @@ function boot(init: InitMessage): void {
 					sequencer.setPendingPattern(data.pattern);
 				} else {
 					sequencer.loadPattern(data.pattern);
+					primeVoices(data.pattern);
 				}
 				break;
 			}
 
 			case "loadPatternImmediate": {
 				sequencer.loadPattern(data.pattern);
-				lastReportedStep = -1;
+				primeVoices(data.pattern);
+
 				break;
 			}
 
 			case "setPatchBank": {
-				patchBank = data.patches;
+				encodedPatches = data.patches.map((p) => encodeVoicePatch(p));
+				trackPatch.fill(-1);
+				// Re-prime voices if a pattern is already loaded
+				const current = sequencer.getPattern();
+				if (current) primeVoices(current);
 				break;
 			}
 
@@ -114,7 +126,6 @@ function boot(init: InitMessage): void {
 				switch (data.command) {
 					case "play": {
 						if (!clock.isRunning()) {
-							lastReportedStep = -1;
 							clock.start();
 						}
 						break;
@@ -122,22 +133,24 @@ function boot(init: InitMessage): void {
 					case "stop": {
 						clock.stop();
 						for (const port of voicePorts) {
-							port.postMessage({ type: "noteOff" } satisfies VoiceMessage);
+							const buf = encodeVoiceNoteOff();
+							port.postMessage(buf, [buf]);
 						}
-						lastReportedStep = -1;
+
 						controlPort.postMessage({ type: "stopped" });
 						break;
 					}
 					case "restart": {
 						clock.stop();
 						for (const port of voicePorts) {
-							port.postMessage({ type: "noteOff" } satisfies VoiceMessage);
+							const buf = encodeVoiceNoteOff();
+							port.postMessage(buf, [buf]);
 						}
 						const pattern = sequencer.getPattern();
 						if (pattern) {
 							sequencer.loadPattern(pattern);
 						}
-						lastReportedStep = -1;
+
 						clock.start();
 						break;
 					}
@@ -151,9 +164,6 @@ function boot(init: InitMessage): void {
 // --- Worker entry point ---
 
 self.onmessage = (msg: MessageEvent<InitMessage>) => {
-	if (msg.data.type !== "init") {
-		throw new Error("first message must be init");
-	}
 	boot(msg.data);
 	self.onmessage = null; // init is one-shot
 };

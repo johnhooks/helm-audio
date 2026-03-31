@@ -1,92 +1,132 @@
-import {
-	encodePatchBank,
-	encodePattern,
-	encodeBusConfig,
-	encodeTransport,
-	encodeTempo,
-	encodeTrigger,
-	decodeStateReport,
-	TransportCommand,
-	TrigType,
-	type Patch,
-	type PatternData,
-	type BusSetup,
-	type Step,
-} from "@helm-audio/protocol";
-import { send, listen } from "@helm-audio/worklet";
-import type { Action } from "@helm-audio/types";
+import { TrigType, type PatternData, type BusSetup, type Step } from "@helm-audio/protocol";
+import type { Orchestrator } from "@helm-audio/synth";
+import type { fm4, Action } from "@helm-audio/types";
 import { MAX_PATTERNS, MAX_UNDO } from "./constants.ts";
 import { StepField, type TrackerState, type UndoGroup } from "./types.ts";
 
 /**
  * Mutable state store for the tracker.
  *
- * Each method mutates state and sends the corresponding protocol message
- * to the engine. The store doesn't know about the display — it just holds
- * data and syncs with the engine.
- *
- * For Helm integration, wrap this in a @wordpress/data store where the
- * methods become actions and the state shape becomes selectors.
+ * Each method mutates state and sends the corresponding command to the
+ * orchestrator. The store doesn't know about the display — it just holds
+ * data and syncs with the audio engine.
  */
 export class TrackerStore {
 	state: TrackerState;
-	dirty = true;
 
 	/** Timestamp of the last animation trigger. */
 	animatingUntil = 0;
 
-	private node: AudioWorkletNode | null = null;
+	/** Called whenever state changes. Set by the shell to trigger redraws. */
+	onDirty: (() => void) | null = null;
+
+	private orchestrator: Orchestrator | null = null;
 
 	constructor(initialState: TrackerState) {
 		this.state = initialState;
 	}
 
-	/** Connect to the audio engine. Call once after createHelmNode resolves. */
-	connect(node: AudioWorkletNode): void {
-		this.node = node;
-		listen(node, (buf) => {
-			this.handleStateReport(buf);
+	/** Connect to the audio orchestrator. Call once after Orchestrator.create resolves. */
+	connectOrchestrator(orch: Orchestrator): void {
+		this.orchestrator = orch;
+		orch.onStepReport((step) => {
+			this.dispatch({ type: "stepReport", step });
 		});
 	}
 
-	/** Send the full current state to the engine (patches, pattern, buses, tempo). */
+	/** Send the full current state to the engine (patches, pattern, tempo). */
 	syncAll(): void {
-		this.sendPatches();
+		if (!this.orchestrator) return;
+		this.orchestrator.loadPatchBank(this.state.patches);
 		this.sendActivePattern();
-		this.sendBuses();
-		this.sendTempo();
+		this.orchestrator.setTempo(this.state.tempo);
 	}
 
 	// --- Action dispatch ---
 
 	dispatch(action: Action): void {
 		switch (action.type) {
-			case "setPage": this.setPage(action.page); break;
-			case "moveCursor": this.moveCursor(action.dRow, action.dCol, action.dField); break;
-			case "setCursor": this.setCursor(action.row, action.col, action.field); break;
-			case "play": this.play(); break;
-			case "stop": this.stop(); break;
-			case "togglePlay": this.togglePlay(); break;
-			case "restart": this.restart(); break;
-			case "setTempo": this.setTempo(action.bpm); break;
-			case "enterNote": this.enterNote(action.note); break;
-			case "noteOff": /* TODO: not implemented yet */ break;
-			case "deleteStep": this.deleteStep(); break;
-			case "setStep": this.setStep(action.patternIndex, action.trackIndex, action.stepIndex, action.step); break;
-			case "clearStep": this.clearStep(action.patternIndex, action.trackIndex, action.stepIndex); break;
-			case "toggleEditMode": this.toggleEditMode(); break;
-			case "setOctave": this.setOctave(action.octave); break;
-			case "setStepSize": this.setStepSize(action.size); break;
-			case "setCurrentPatchIndex": this.setCurrentPatchIndex(action.index); break;
-			case "setChainEntry": this.setChainEntry(action.row, action.track, action.patternIndex); break;
-			case "clearChainEntry": this.clearChainEntry(action.row, action.track); break;
-			case "setActivePattern": this.setActivePattern(action.index); break;
-			case "setCurrentBank": this.setCurrentBank(action.bank); break;
-			case "setPatch": this.setPatch(action.index, action.patch); break;
-			case "setPatchName": this.setPatchName(action.index, action.name); break;
-			case "setBuses": this.setBuses(action.buses); break;
-			case "undo": this.undo(); break;
-			case "redo": this.redo(); break;
+			case "setPage":
+				this.setPage(action.page);
+				break;
+			case "moveCursor":
+				this.moveCursor(action.dRow, action.dCol, action.dField);
+				break;
+			case "setCursor":
+				this.setCursor(action.row, action.col, action.field);
+				break;
+			case "play":
+				this.play();
+				break;
+			case "stop":
+				this.stop();
+				break;
+			case "togglePlay":
+				this.togglePlay();
+				break;
+			case "restart":
+				this.restart();
+				break;
+			case "setTempo":
+				this.setTempo(action.bpm);
+				break;
+			case "stepReport":
+				this.state.playbackStep = action.step;
+				this.markDirty();
+				break;
+			case "enterNote":
+				this.enterNote(action.note);
+				break;
+			case "noteOff":
+				/* TODO: not implemented yet */ break;
+			case "deleteStep":
+				this.deleteStep();
+				break;
+			case "setStep":
+				this.setStep(action.patternIndex, action.trackIndex, action.stepIndex, action.step);
+				break;
+			case "clearStep":
+				this.clearStep(action.patternIndex, action.trackIndex, action.stepIndex);
+				break;
+			case "toggleEditMode":
+				this.toggleEditMode();
+				break;
+			case "setOctave":
+				this.setOctave(action.octave);
+				break;
+			case "setStepSize":
+				this.setStepSize(action.size);
+				break;
+			case "setCurrentPatchIndex":
+				this.setCurrentPatchIndex(action.index);
+				break;
+			case "setChainEntry":
+				this.setChainEntry(action.row, action.track, action.patternIndex);
+				break;
+			case "clearChainEntry":
+				this.clearChainEntry(action.row, action.track);
+				break;
+			case "setActivePattern":
+				this.setActivePattern(action.index);
+				break;
+			case "setCurrentBank":
+				this.setCurrentBank(action.bank);
+				break;
+			case "setPatch":
+				this.setPatch(action.index, action.patch);
+				break;
+			case "setPatchName":
+				this.setPatchName(action.index, action.name);
+				break;
+			case "setBuses":
+				this.setBuses(action.buses);
+				break;
+			case "undo":
+				this.undo();
+				break;
+			case "redo":
+				this.redo();
+				break;
 		}
 	}
 
@@ -94,13 +134,13 @@ export class TrackerStore {
 
 	play(): void {
 		this.state.playing = true;
-		this.send(encodeTransport(TransportCommand.Play));
+		this.orchestrator?.play();
 		this.markDirty();
 	}
 
 	stop(): void {
 		this.state.playing = false;
-		this.send(encodeTransport(TransportCommand.Stop));
+		this.orchestrator?.stop();
 		this.markDirty();
 	}
 
@@ -115,13 +155,13 @@ export class TrackerStore {
 	restart(): void {
 		this.state.playing = true;
 		this.state.playbackStep = 0;
-		this.send(encodeTransport(TransportCommand.Restart));
+		this.orchestrator?.restart();
 		this.markDirty();
 	}
 
 	setTempo(bpm: number): void {
 		this.state.tempo = bpm;
-		this.send(encodeTempo(bpm));
+		this.orchestrator?.setTempo(bpm);
 		this.markDirty();
 	}
 
@@ -155,19 +195,12 @@ export class TrackerStore {
 		const step: Step = {
 			stepIndex: s.cursor.row,
 			trig: { type: TrigType.NoteOn, note, velocity: 0x7f },
-			patchIndex: s.currentPatchIndex,
 		};
 
 		this.setStep(s.activePatternIndex, s.cursor.col, s.cursor.row, step);
 
-		// Preview the note (immediate trigger, bypasses sequencer)
-		this.send(
-			encodeTrigger({
-				track: s.cursor.col,
-				patchIndex: s.currentPatchIndex,
-				trig: { type: TrigType.NoteOn, note, velocity: 0x7f },
-			}),
-		);
+		// Preview the note (keyjazz — bypasses sequencer)
+		this.orchestrator?.noteOn(s.cursor.col, note, 0x7f);
 
 		// Advance cursor
 		if (s.stepSize > 0) {
@@ -210,8 +243,6 @@ export class TrackerStore {
 			track.events.push(step);
 		}
 
-		// Send to engine (once SetStep protocol message exists)
-		// For now, re-send the full pattern
 		this.sendActivePattern();
 		this.markDirty();
 	}
@@ -242,16 +273,15 @@ export class TrackerStore {
 
 	// --- Patch editing ---
 
-	setPatch(index: number, patch: Patch): void {
+	setPatch(index: number, patch: fm4.Patch): void {
 		if (index >= this.state.patches.length) {
-			// Extend the bank
 			while (this.state.patches.length <= index) {
 				this.state.patches.push({ ...this.state.patches[0] });
 				this.state.patchNames.push("init");
 			}
 		}
 		this.state.patches[index] = patch;
-		this.sendPatches();
+		this.orchestrator?.loadPatchBank(this.state.patches);
 		this.markDirty();
 	}
 
@@ -266,7 +296,6 @@ export class TrackerStore {
 
 	setChainEntry(row: number, track: number, patternIndex: number): void {
 		const idx = row * 8 + track;
-		// Grow chain array if needed
 		while (this.state.chain.length <= idx) {
 			this.state.chain.push({ patternIndex: -1 });
 		}
@@ -302,7 +331,7 @@ export class TrackerStore {
 
 	setBuses(buses: BusSetup): void {
 		this.state.buses = buses;
-		this.sendBuses();
+		// TODO: send bus config to orchestrator when effect buses are implemented
 		this.markDirty();
 	}
 
@@ -341,7 +370,6 @@ export class TrackerStore {
 		const group = this.state.undoStack.pop();
 		if (!group) return;
 
-		// Apply the reverse
 		for (const entry of group.entries) {
 			const pattern = this.state.patterns[entry.patternIndex];
 			if (!pattern) continue;
@@ -350,7 +378,6 @@ export class TrackerStore {
 
 			const idx = track.events.findIndex((e) => e.stepIndex === entry.stepIndex);
 			if (entry.before === null) {
-				// Was an insert — remove it
 				if (idx >= 0) track.events.splice(idx, 1);
 			} else if (idx >= 0) {
 				track.events[idx] = entry.before;
@@ -391,12 +418,10 @@ export class TrackerStore {
 
 	// --- Helpers ---
 
-	/** Get the currently active pattern, or null. */
 	getActivePattern(): PatternData | null {
 		return this.state.patterns[this.state.activePatternIndex];
 	}
 
-	/** Get the step data at a position, or null if empty. */
 	getStepAt(trackIndex: number, stepIndex: number): Step | null {
 		const pattern = this.getActivePattern();
 		if (!pattern || trackIndex >= pattern.tracks.length) return null;
@@ -405,51 +430,23 @@ export class TrackerStore {
 
 	// --- Internal ---
 
-	private handleStateReport(buf: ArrayBuffer): void {
-		const report = decodeStateReport(buf);
-		if (!report) return;
-
-		this.state.playbackStep = report.step;
-		this.state.playing = report.playing;
-		this.markDirty();
-	}
-
 	private pushUndo(entries: UndoGroup["entries"]): void {
 		this.state.undoStack.push({ entries });
 		if (this.state.undoStack.length > MAX_UNDO) {
 			this.state.undoStack.shift();
 		}
-		// Clear redo on new edit
 		this.state.redoStack.length = 0;
-	}
-
-	private sendPatches(): void {
-		this.send(encodePatchBank(this.state.patches));
 	}
 
 	private sendActivePattern(): void {
 		const pattern = this.getActivePattern();
 		if (pattern) {
-			this.send(encodePattern(pattern));
-		}
-	}
-
-	private sendBuses(): void {
-		this.send(encodeBusConfig(this.state.buses));
-	}
-
-	private sendTempo(): void {
-		this.send(encodeTempo(this.state.tempo));
-	}
-
-	private send(buf: ArrayBuffer): void {
-		if (this.node) {
-			send(this.node, buf);
+			this.orchestrator?.loadPattern(pattern);
 		}
 	}
 
 	private markDirty(): void {
-		this.dirty = true;
+		this.onDirty?.();
 	}
 }
 

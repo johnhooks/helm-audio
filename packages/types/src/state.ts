@@ -1,4 +1,5 @@
-import type { BusSetup, Patch, PatternData, Step } from "./audio.ts";
+import type { BusSetup, PatternData, Step } from "./audio.ts";
+import type { Patch } from "./fm4.ts";
 
 // --- Pages ---
 

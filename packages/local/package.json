@@ -11,6 +11,8 @@
 		"@helm-audio/display": "workspace:*",
 		"@helm-audio/protocol": "workspace:*",
 		"@helm-audio/store": "workspace:*",
+		"@helm-audio/synth": "workspace:*",
+		"@helm-audio/types": "workspace:*",
 		"@helm-audio/ui": "workspace:*",
 		"@helm-audio/worklet": "workspace:*"
 	},

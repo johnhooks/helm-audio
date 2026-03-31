@@ -11,7 +11,7 @@
 	},
 	"dependencies": {
 		"@helm-audio/protocol": "workspace:*",
-		"@helm-audio/types": "workspace:*",
-		"@helm-audio/worklet": "workspace:*"
+		"@helm-audio/synth": "workspace:*",
+		"@helm-audio/types": "workspace:*"
 	}
 }

@@ -14,7 +14,7 @@
  */
 
 import { assert } from "@helm-audio/lib";
-import { TrigType, type PatternData, type Step, type ParamLock } from "@helm-audio/types";
+import { type Trig, type PatternData, type Step, type ParamLock } from "@helm-audio/types";
 
 /** Ticks per quarter note. */
 export const PPQ = 24;
@@ -23,11 +23,8 @@ export const PPQ = 24;
 export const TICKS_PER_STEP = PPQ / 4; // 6
 
 export interface SequencerListener {
-	onNoteOn(track: number, note: number, velocity: number): void;
-	onNoteOff(track: number): void;
-	onFadeOut(track: number): void;
 	onLoadPatch(track: number, patchIndex: number): void;
-	onParamLock(track: number, lock: ParamLock): void;
+	onTrig(track: number, trig: Trig | undefined, locks: ParamLock[] | undefined): void;
 }
 
 interface TrackState {
@@ -52,6 +49,11 @@ export class Sequencer {
 
 	getTick(): number {
 		return this.#tick;
+	}
+
+	/** Current step index (tick / TICKS_PER_STEP, wraps with pattern). */
+	getStep(): number {
+		return Math.floor(this.#tick / TICKS_PER_STEP);
 	}
 
 	getTrackCursor(trackIndex: number): number {
@@ -156,32 +158,10 @@ export class Sequencer {
 	}
 
 	#dispatchStep(trackIndex: number, step: Step): void {
-		// 1. Patch load
 		if (step.patchIndex !== undefined) {
 			this.#listener.onLoadPatch(trackIndex, step.patchIndex);
 		}
-
-		// 2. Trig
-		if (step.trig) {
-			switch (step.trig.type) {
-				case TrigType.NoteOn:
-					this.#listener.onNoteOn(trackIndex, step.trig.note, step.trig.velocity);
-					break;
-				case TrigType.NoteOff:
-					this.#listener.onNoteOff(trackIndex);
-					break;
-				case TrigType.FadeOut:
-					this.#listener.onFadeOut(trackIndex);
-					break;
-			}
-		}
-
-		// 3. Param locks
-		if (step.locks) {
-			for (const lock of step.locks) {
-				this.#listener.onParamLock(trackIndex, lock);
-			}
-		}
+		this.#listener.onTrig(trackIndex, step.trig, step.locks);
 	}
 
 	#checkLoopBoundary(): void {

@@ -42,6 +42,9 @@ export class Tracker {
 		this.store = store;
 		this.focusPath = DEFAULT_PATHS[store.state.page];
 		this.view = this.buildView();
+		store.onDirty = () => {
+			this.dirty = true;
+		};
 	}
 
 	/** Handle a raw keyboard event. Returns true if the event was consumed. */
@@ -61,6 +64,20 @@ export class Tracker {
 		// Global: edit mode toggle
 		if (key === "Space") {
 			this.emit({ type: "toggleEditMode" });
+			return true;
+		}
+
+		// Global: transport
+		if (key === "F5") {
+			this.emit({ type: "play" });
+			return true;
+		}
+		if (key === "F6") {
+			this.emit({ type: "stop" });
+			return true;
+		}
+		if (key === "F7") {
+			this.emit({ type: "restart" });
 			return true;
 		}
 

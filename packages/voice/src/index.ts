@@ -1,3 +1,5 @@
+import { encodeVoiceInit } from "@helm-audio/protocol";
+
 export interface VoiceNodeOptions {
 	processorUrl: string;
 }
@@ -14,7 +16,8 @@ export async function createVoiceNode(
 		outputChannelCount: [1, 1, 1, 1, 1],
 	});
 
-	node.port.postMessage({ type: "init", sampleRate: context.sampleRate });
+	const initBuf = encodeVoiceInit(context.sampleRate);
+	node.port.postMessage(initBuf, [initBuf]);
 
 	await new Promise<void>((resolve, reject) => {
 		node.port.onmessage = (e) => {
@@ -28,7 +31,7 @@ export async function createVoiceNode(
 	return node;
 }
 
-/** Transfer a MessagePort from the sequencer worker into the voice processor. */
+/** Transfer a MessagePort into the voice processor for sequencer communication. */
 export function connectSequencerPort(node: AudioWorkletNode, port: MessagePort): void {
-	node.port.postMessage({ type: "connectSequencer", port }, [port]);
+	node.port.postMessage({ type: "connectPort", port }, [port]);
 }

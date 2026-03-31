@@ -1,0 +1,15 @@
+{
+	"name": "@helm-audio/synth",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@helm-audio/protocol": "workspace:*",
+		"@helm-audio/sequencer": "workspace:*",
+		"@helm-audio/types": "workspace:*",
+		"@helm-audio/voice": "workspace:*"
+	}
+}

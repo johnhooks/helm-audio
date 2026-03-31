@@ -18,7 +18,11 @@ export function drawTransport(display: DisplayList, state: TrackerState, row: nu
 }
 
 /** Track activity indicators: 1: --- through 8: --- */
-export function drawTrackActivity(display: DisplayList, _state: TrackerState, startRow: number): void {
+export function drawTrackActivity(
+	display: DisplayList,
+	_state: TrackerState,
+	startRow: number,
+): void {
 	for (let t = 0; t < 8; t++) {
 		display.drawText(R, startRow + t, `${String(t + 1)}:`, ...C.textDim);
 		display.drawText(R + 2, startRow + t, ` ---`, ...C.textDim);
@@ -58,11 +62,26 @@ export function drawKeyboard(display: DisplayList, row: number): void {
  * Draw all shared chrome elements into the display.
  * Call this from every view's root draw function.
  */
+/** Keybind hints at the bottom of the screen. */
+export function drawHints(display: DisplayList, row: number): void {
+	display.drawText(0, row, "F5", ...C.accent);
+	display.drawText(2, row, "play ", ...C.textDim);
+	display.drawText(7, row, "F6", ...C.accent);
+	display.drawText(9, row, "stop ", ...C.textDim);
+	display.drawText(14, row, "F7", ...C.accent);
+	display.drawText(16, row, "restart ", ...C.textDim);
+	display.drawText(24, row, "SPC", ...C.accent);
+	display.drawText(27, row, "edit ", ...C.textDim);
+	display.drawText(32, row, "S-<>", ...C.accent);
+	display.drawText(36, row, "page", ...C.textDim);
+}
+
 export function drawChrome(display: DisplayList, state: TrackerState): void {
 	drawTransport(display, state, 2);
 	drawTrackActivity(display, state, 4);
 	drawKeyboard(display, 14);
 	drawPageIndicator(display, state, 17);
+	drawHints(display, 24);
 }
 
 /**
@@ -73,33 +92,69 @@ export function chromeElements(state: TrackerState): Element[] {
 	return [
 		{
 			id: "transport",
-			col: R, row: 2, width: 12, height: 1,
+			col: R,
+			row: 2,
+			width: 12,
+			height: 1,
 			enabled: false,
-			draw: (display) => { drawTransport(display, state, 2); },
+			draw: (display) => {
+				drawTransport(display, state, 2);
+			},
 		},
 		{
 			id: "track-activity",
-			col: R, row: 4, width: 12, height: 8,
+			col: R,
+			row: 4,
+			width: 12,
+			height: 8,
 			enabled: false,
-			draw: (display) => { drawTrackActivity(display, state, 4); },
+			draw: (display) => {
+				drawTrackActivity(display, state, 4);
+			},
 		},
 		{
 			id: "edit-status",
-			col: R, row: 13, width: 12, height: 1,
+			col: R,
+			row: 13,
+			width: 12,
+			height: 1,
 			enabled: false,
-			draw: (display) => { drawEditStatus(display, state, 13); },
+			draw: (display) => {
+				drawEditStatus(display, state, 13);
+			},
 		},
 		{
 			id: "keyboard",
-			col: R, row: 14, width: 12, height: 1,
+			col: R,
+			row: 14,
+			width: 12,
+			height: 1,
 			enabled: false,
-			draw: (display) => { drawKeyboard(display, 14); },
+			draw: (display) => {
+				drawKeyboard(display, 14);
+			},
 		},
 		{
 			id: "page-indicator",
-			col: R, row: 17, width: 3, height: 1,
+			col: R,
+			row: 17,
+			width: 3,
+			height: 1,
 			enabled: false,
-			draw: (display) => { drawPageIndicator(display, state, 17); },
+			draw: (display) => {
+				drawPageIndicator(display, state, 17);
+			},
+		},
+		{
+			id: "hints",
+			col: 0,
+			row: 24,
+			width: 40,
+			height: 1,
+			enabled: false,
+			draw: (display) => {
+				drawHints(display, 24);
+			},
 		},
 	];
 }

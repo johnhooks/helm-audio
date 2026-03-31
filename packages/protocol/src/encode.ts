@@ -1,4 +1,5 @@
 import { Builder, u8, i8, f32 } from "@bitmachina/binary";
+import type { fm4 } from "@helm-audio/types";
 import {
 	type BusSetup,
 	type EffectConfig,
@@ -12,6 +13,7 @@ import {
 	TransportCommand,
 	TrigType,
 	type TriggerMessage,
+	VoiceMessageType,
 } from "./types.ts";
 
 // --- Flags -------------------------------------------------------------------
@@ -191,6 +193,125 @@ export function encodeTrigger(msg: TriggerMessage): ArrayBuffer {
 		b.write(u8, msg.trig.velocity);
 	}
 
+	return b.toTransferable();
+}
+
+// --- FM4 voice encoders ------------------------------------------------------
+
+export function encodeVoiceInit(sampleRate: number): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.Init);
+	b.write(f32, sampleRate);
+	return b.toTransferable();
+}
+
+export function encodeVoicePatch(patch: fm4.Patch): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.LoadPatch);
+
+	for (const op of patch.operators) {
+		b.write(f32, op.ratio);
+		b.write(f32, op.detune);
+		b.write(f32, op.level);
+	}
+
+	b.write(u8, patch.algorithm);
+	b.write(f32, patch.index);
+	b.write(f32, patch.feedback);
+
+	// Envelope A
+	b.write(f32, patch.envA.attack);
+	b.write(f32, patch.envA.decay);
+	b.write(f32, patch.envA.sustain);
+	b.write(f32, patch.envA.release);
+
+	// Envelope B
+	b.write(f32, patch.envB.attack);
+	b.write(f32, patch.envB.decay);
+	b.write(f32, patch.envB.sustain);
+	b.write(f32, patch.envB.release);
+
+	// Amplitude envelope
+	b.write(f32, patch.ampEnv.attack);
+	b.write(f32, patch.ampEnv.decay);
+	b.write(f32, patch.ampEnv.sustain);
+	b.write(f32, patch.ampEnv.release);
+
+	// Filter
+	b.write(f32, patch.filterFreq);
+	b.write(f32, patch.filterRes);
+
+	// Sends
+	for (const send of patch.sends) {
+		b.write(f32, send);
+	}
+
+	// LFOs
+	for (const lfo of patch.lfos) {
+		b.write(f32, lfo.rate);
+		b.write(u8, lfo.waveform);
+		b.write(u8, lfo.routes.length);
+		for (const route of lfo.routes) {
+			b.write(u8, route.target);
+			b.write(f32, route.depth);
+		}
+	}
+
+	return b.toTransferable();
+}
+
+import type { Trig } from "@helm-audio/types";
+
+export interface VoiceTrig {
+	trig?: Trig;
+	locks?: Array<{ param: number; value: number }>;
+}
+
+export function encodeVoiceTrig(msg: VoiceTrig): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.Trig);
+
+	let flags = 0;
+	if (msg.trig) flags |= HAS_TRIG;
+	if (msg.locks && msg.locks.length > 0) flags |= HAS_LOCKS;
+	b.write(u8, flags);
+
+	if (msg.trig) {
+		b.write(u8, msg.trig.type);
+		if (msg.trig.type === TrigType.NoteOn) {
+			b.write(u8, msg.trig.note);
+			b.write(u8, msg.trig.velocity);
+		}
+	}
+
+	if (msg.locks && msg.locks.length > 0) {
+		b.write(u8, msg.locks.length);
+		for (const lock of msg.locks) {
+			b.write(u8, lock.param);
+			b.write(f32, lock.value);
+		}
+	}
+
+	return b.toTransferable();
+}
+
+export function encodeVoiceNoteOn(note: number, velocity: number): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.NoteOn);
+	b.write(u8, note);
+	b.write(u8, velocity);
+	return b.toTransferable();
+}
+
+export function encodeVoiceNoteOff(): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.NoteOff);
+	return b.toTransferable();
+}
+
+export function encodeVoiceFadeOut(): ArrayBuffer {
+	const b = new Builder();
+	b.write(u8, VoiceMessageType.FadeOut);
 	return b.toTransferable();
 }
 

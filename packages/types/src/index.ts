@@ -25,6 +25,8 @@ export {
 	type BusSetup,
 } from "./audio.ts";
 
+export * as fm4 from "./fm4.ts";
+
 // State types
 export {
 	Page,

@@ -7,8 +7,5 @@ export default {
 		file: "dist/worker.js",
 		format: "es",
 	},
-	plugins: [
-		nodeResolve(),
-		esbuild({ target: "es2024" }),
-	],
+	plugins: [nodeResolve(), esbuild({ target: "es2024" })],
 };

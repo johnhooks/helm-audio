@@ -23,8 +23,9 @@ const vec2 corners[4] = vec2[](
     vec2(1, 1));
 
 void main() {
-    float row;
-    float col = modf(float(gl_InstanceID) / gridSize.x, row) * gridSize.x;
+    int cols = int(gridSize.x);
+    float row = float(gl_InstanceID / cols);
+    float col = float(gl_InstanceID - int(row) * cols);
 
     vec2 pos = vec2(col, row) * cellSize;
     vec2 camScale = vec2(2.0 / resolution.x, -2.0 / resolution.y);

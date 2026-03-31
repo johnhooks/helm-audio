@@ -14,10 +14,7 @@ import {
 // --- Test helpers ---
 
 /** Create a minimal element. No draw needed for logic tests. */
-function el(
-	id: string,
-	opts: Partial<Element> = {},
-): Element {
+function el(id: string, opts: Partial<Element> = {}): Element {
 	return {
 		id,
 		col: 0,
@@ -54,10 +51,7 @@ function makeTree(): Element {
 				children: [el("b1")],
 			}),
 			el("c", {
-				children: [
-					el("c1", { enabled: false }),
-					el("c2"),
-				],
+				children: [el("c1", { enabled: false }), el("c2")],
 			}),
 		],
 	});
@@ -122,10 +116,16 @@ describe("dispatchKey", () => {
 	it("dispatches to the deepest handler first", () => {
 		const log: string[] = [];
 		const tree = el("root", {
-			onKey: (key) => { log.push("root:" + key); return true; },
+			onKey: (key) => {
+				log.push("root:" + key);
+				return true;
+			},
 			children: [
 				el("child", {
-					onKey: (key) => { log.push("child:" + key); return true; },
+					onKey: (key) => {
+						log.push("child:" + key);
+						return true;
+					},
 				}),
 			],
 		});
@@ -138,7 +138,10 @@ describe("dispatchKey", () => {
 	it("bubbles to parent when child does not handle", () => {
 		const log: string[] = [];
 		const tree = el("root", {
-			onKey: (key) => { log.push("root:" + key); return true; },
+			onKey: (key) => {
+				log.push("root:" + key);
+				return true;
+			},
 			children: [
 				el("child", {
 					onKey: () => false, // does not handle
@@ -163,10 +166,16 @@ describe("dispatchKey", () => {
 	it("passes the full path to each handler", () => {
 		const receivedPaths: string[][] = [];
 		const tree = el("root", {
-			onKey: (_key, path) => { receivedPaths.push([...path]); return false; },
+			onKey: (_key, path) => {
+				receivedPaths.push([...path]);
+				return false;
+			},
 			children: [
 				el("child", {
-					onKey: (_key, path) => { receivedPaths.push([...path]); return false; },
+					onKey: (_key, path) => {
+						receivedPaths.push([...path]);
+						return false;
+					},
 				}),
 			],
 		});
@@ -181,13 +190,22 @@ describe("dispatchKey", () => {
 	it("stops bubbling after a handler returns true", () => {
 		const log: string[] = [];
 		const tree = el("root", {
-			onKey: () => { log.push("root"); return true; },
+			onKey: () => {
+				log.push("root");
+				return true;
+			},
 			children: [
 				el("a", {
-					onKey: () => { log.push("a"); return true; },
+					onKey: () => {
+						log.push("a");
+						return true;
+					},
 					children: [
 						el("a1", {
-							onKey: () => { log.push("a1"); return false; }, // does not handle
+							onKey: () => {
+								log.push("a1");
+								return false;
+							}, // does not handle
 						}),
 					],
 				}),
@@ -210,9 +228,7 @@ describe("drawAll", () => {
 			children: [
 				el("a", {
 					draw: () => drawn.push("a"),
-					children: [
-						el("a1", { draw: () => drawn.push("a1") }),
-					],
+					children: [el("a1", { draw: () => drawn.push("a1") })],
 				}),
 				el("b", { draw: () => drawn.push("b") }),
 			],
@@ -225,13 +241,25 @@ describe("drawAll", () => {
 	it("sets focused=true only on the leaf of the path", () => {
 		const focusState: Record<string, boolean> = {};
 		const tree = el("root", {
-			draw: (_d, focused) => { focusState["root"] = focused; },
+			draw: (_d, focused) => {
+				focusState["root"] = focused;
+			},
 			children: [
 				el("a", {
-					draw: (_d, focused) => { focusState["a"] = focused; },
+					draw: (_d, focused) => {
+						focusState["a"] = focused;
+					},
 					children: [
-						el("a1", { draw: (_d, focused) => { focusState["a1"] = focused; } }),
-						el("a2", { draw: (_d, focused) => { focusState["a2"] = focused; } }),
+						el("a1", {
+							draw: (_d, focused) => {
+								focusState["a1"] = focused;
+							},
+						}),
+						el("a2", {
+							draw: (_d, focused) => {
+								focusState["a2"] = focused;
+							},
+						}),
 					],
 				}),
 			],
@@ -247,16 +275,26 @@ describe("drawAll", () => {
 	it("sets inScope=true for elements on the focus path", () => {
 		const scopeState: Record<string, boolean> = {};
 		const tree = el("root", {
-			draw: (_d, _f, inScope) => { scopeState["root"] = inScope; },
+			draw: (_d, _f, inScope) => {
+				scopeState["root"] = inScope;
+			},
 			children: [
 				el("a", {
-					draw: (_d, _f, inScope) => { scopeState["a"] = inScope; },
+					draw: (_d, _f, inScope) => {
+						scopeState["a"] = inScope;
+					},
 					children: [
-						el("a1", { draw: (_d, _f, inScope) => { scopeState["a1"] = inScope; } }),
+						el("a1", {
+							draw: (_d, _f, inScope) => {
+								scopeState["a1"] = inScope;
+							},
+						}),
 					],
 				}),
 				el("b", {
-					draw: (_d, _f, inScope) => { scopeState["b"] = inScope; },
+					draw: (_d, _f, inScope) => {
+						scopeState["b"] = inScope;
+					},
 				}),
 			],
 		});
@@ -330,10 +368,7 @@ describe("drillIn", () => {
 
 	it("returns null when all children are disabled", () => {
 		const allDisabled = el("root", {
-			children: [
-				el("x", { enabled: false }),
-				el("y", { enabled: false }),
-			],
+			children: [el("x", { enabled: false }), el("y", { enabled: false })],
 		});
 		const result = drillIn(allDisabled, ["root"]);
 		expect(result).toBeNull();

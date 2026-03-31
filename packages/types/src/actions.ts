@@ -1,4 +1,5 @@
-import type { Patch, Step, BusSetup } from "./audio.ts";
+import type { Step, BusSetup } from "./audio.ts";
+import type { Patch } from "./fm4.ts";
 import type { Page, StepField } from "./state.ts";
 
 // --- UI actions ---
@@ -15,6 +16,7 @@ export type Action =
 	| { type: "togglePlay" }
 	| { type: "restart" }
 	| { type: "setTempo"; bpm: number }
+	| { type: "stepReport"; step: number }
 
 	// Note entry
 	| { type: "enterNote"; note: number }

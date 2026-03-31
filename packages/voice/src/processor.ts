@@ -1,17 +1,15 @@
 /**
- * AudioWorkletProcessor for a single FM voice.
+ * AudioWorkletProcessor for a single FM4 voice.
  *
- * Receives plain JS objects via MessagePort (not binary protocol).
- * Two message sources, both using the same VoiceMessage format:
- *   - Main thread (node.port): live keyjazz, UI patch editing
- *   - Sequencer worker (transferred port): pattern playback
+ * All messages are raw ArrayBuffers sent via port.postMessage(buf, [buf])
+ * for zero-copy transfer. The message type byte is at offset 0, matching
+ * @helm-audio/protocol's VoiceMessageType enum.
  *
  * Outputs:
  *   0: dry mono (1ch)
  *   1-4: dry × send level per-sample (1ch each)
  */
 
-import type { Patch } from "@helm-audio/types";
 import createHelmVoiceModule from "../../../build/wasm/helm_voice.mjs";
 
 type HelmVoiceModule = Awaited<ReturnType<typeof createHelmVoiceModule>>;
@@ -20,10 +18,8 @@ type VoiceBinding = InstanceType<HelmVoiceModule["VoiceBinding"]>;
 const BLOCK_SIZE = 128;
 const NUM_SENDS = 4;
 
-interface VoiceMessage {
-	type: string;
-	[key: string]: unknown;
-}
+// VoiceMessageType.Init = 0x00
+const MSG_INIT = 0x00;
 
 class VoiceProcessor extends AudioWorkletProcessor {
 	#voice: VoiceBinding | null = null;
@@ -32,74 +28,49 @@ class VoiceProcessor extends AudioWorkletProcessor {
 	constructor() {
 		super();
 		this.port.onmessage = (e: MessageEvent) => {
-			this.#handleMessage(e.data as VoiceMessage);
+			this.#handlePortMessage(e);
 		};
 	}
 
-	#handleMessage(msg: VoiceMessage): void {
-		switch (msg.type) {
-			case "init":
-				void this.#init(msg.sampleRate as number);
-				break;
-			case "connectSequencer": {
-				const port = msg.port as MessagePort;
-				port.onmessage = (e: MessageEvent) => {
-					this.#handleVoiceMessage(e.data as VoiceMessage);
+	#handlePortMessage(e: MessageEvent): void {
+		// JSON messages: port transfer for sequencer worker connection
+		if (!(e.data instanceof ArrayBuffer)) {
+			const msg = e.data as { type: string; port?: MessagePort };
+			if (msg.type === "connectPort" && msg.port) {
+				msg.port.onmessage = (ev: MessageEvent) => {
+					this.#handleBinary(ev.data as ArrayBuffer);
 				};
-				break;
 			}
-			default:
-				this.#handleVoiceMessage(msg);
+			return;
 		}
+		this.#handleBinary(e.data);
 	}
 
-	#handleVoiceMessage(msg: VoiceMessage): void {
-		if (!this.#voice) return;
-		switch (msg.type) {
-			case "noteOn":
-				this.#voice.noteOn(msg.note as number, msg.velocity as number);
-				break;
-			case "noteOff":
-				this.#voice.noteOff();
-				break;
-			case "fadeOut":
-				this.#voice.fadeOut();
-				break;
-			case "loadPatch":
-				this.#loadPatch(msg.patch as Patch);
-				break;
-			case "paramLock":
-				this.#voice.setParam(msg.param as number, msg.value as number);
-				break;
+	#handleBinary(msg: ArrayBuffer): void {
+		if (msg.byteLength === 0) return;
+
+		const view = new DataView(msg);
+		const type = view.getUint8(0);
+
+		if (type === MSG_INIT) {
+			void this.#init(view);
+			return;
 		}
+
+		// All other messages go to the C++ protocol decoder
+		if (!this.#voice || !this.#module) return;
+		const ptr = this.#module._malloc(msg.byteLength);
+		const heap = new Uint8Array(this.#module.HEAPU8.buffer, ptr, msg.byteLength);
+		heap.set(new Uint8Array(msg));
+		this.#voice.receiveMessage(ptr, msg.byteLength);
+		this.#module._free(ptr);
 	}
 
-	#loadPatch(patch: Patch): void {
-		const v = this.#voice!;
-		for (let i = 0; i < 2; i++) {
-			const op = patch.operators[i];
-			v.configureOperator(
-				i, op.ratio, op.detune, op.level, op.feedback,
-				op.attack, op.decay, op.sustain, op.release,
-			);
-		}
-		v.configureFilter(patch.filterFreq, patch.filterRes);
-		v.configureEnvelope(patch.attack, patch.decay, patch.sustain, patch.release);
-		v.setIndex(patch.index);
-		v.setSends(patch.sends[0], patch.sends[1], patch.sends[2], patch.sends[3]);
-		for (let i = 0; i < 2; i++) {
-			const lfo = patch.lfos[i];
-			v.configureLfo(i, lfo.rate, lfo.waveform);
-			v.clearLfoRoutes(i);
-			for (const route of lfo.routes) {
-				v.addLfoRoute(i, route.target, route.depth);
-			}
-		}
-		v.applyPatch();
-	}
-
-	async #init(sampleRate: number): Promise<void> {
+	// Init wire format: [type: u8] [sampleRate: f32 LE]
+	async #init(view: DataView): Promise<void> {
 		try {
+			const sampleRate = view.getFloat32(1, true);
+
 			this.#module = await createHelmVoiceModule();
 			this.#voice = new this.#module.VoiceBinding();
 			this.#voice.init(sampleRate);
@@ -121,15 +92,12 @@ class VoiceProcessor extends AudioWorkletProcessor {
 		const offset = outPtr / 4;
 
 		// Output 0: dry mono
-		const dryOut = outputs[0]?.[0];
-		if (dryOut) {
-			dryOut.set(heap.subarray(offset, offset + BLOCK_SIZE));
-		}
+		const dryOut = outputs[0][0];
+		dryOut.set(heap.subarray(offset, offset + BLOCK_SIZE));
 
 		// Outputs 1-4: dry × per-sample send level
 		for (let s = 0; s < NUM_SENDS; s++) {
-			const sendOut = outputs[s + 1]?.[0];
-			if (!sendOut) continue;
+			const sendOut = outputs[s + 1][0];
 			const sendPtr = this.#voice.getSendBuffer(s);
 			const sendOffset = sendPtr / 4;
 			for (let i = 0; i < BLOCK_SIZE; i++) {

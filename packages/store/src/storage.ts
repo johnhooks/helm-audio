@@ -1,4 +1,5 @@
-import type { BusSetup, Patch, PatternData } from "@helm-audio/protocol";
+import type { BusSetup, PatternData } from "@helm-audio/protocol";
+import type { fm4 } from "@helm-audio/types";
 import { type ChainEntry, type Cursor, Page } from "./types.ts";
 import type { TrackerState } from "./types.ts";
 import { createInitialState } from "./defaults.ts";
@@ -10,7 +11,7 @@ export interface ProjectData {
 	octave: number;
 	stepSize: number;
 	patterns: (PatternData | null)[];
-	patches: Patch[];
+	patches: fm4.Patch[];
 	patchNames: string[];
 	buses: BusSetup;
 	chain: ChainEntry[];

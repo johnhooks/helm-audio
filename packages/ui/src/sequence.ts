@@ -1,4 +1,12 @@
-import { TrigType, StepField, type TrackerState, type Action, type NoteOnTrig, type Trig, type Step } from "@helm-audio/types";
+import {
+	TrigType,
+	StepField,
+	type TrackerState,
+	type Action,
+	type NoteOnTrig,
+	type Trig,
+	type Step,
+} from "@helm-audio/types";
 import type { Element } from "./element.ts";
 import { chromeElements } from "./chrome.ts";
 import { C } from "./palette.ts";
@@ -43,7 +51,12 @@ function isNoteOn(trig: Trig): trig is NoteOnTrig {
  *   Row 2: Column headers (N V I FX1 FX2 FX3)
  *   Rows 3-18: 16 step rows with fields
  */
-export function buildSequenceView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void, hexEntry?: HexEntry): Element {
+export function buildSequenceView(
+	state: TrackerState,
+	emit: (a: Action) => void,
+	setPath: (p: string[]) => void,
+	hexEntry?: HexEntry,
+): Element {
 	const fields = ["note", "vel", "patch", "fx1", "fx2", "fx3"];
 	const fieldCols = [NOTE_COL, VEL_COL, PATCH_COL, FX1_COL, FX2_COL, FX3_COL];
 	const fieldWidths = [3, 2, 2, 5, 5, 5];
@@ -76,7 +89,7 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 				draw: (display, focused) => {
 					const trackIdx = state.cursor.col;
 					const track = pattern?.tracks[trackIdx];
-					const step = track?.events.find(e => e.stepIndex === row);
+					const step = track?.events.find((e) => e.stepIndex === row);
 					const trig = step?.trig;
 
 					let text: string;
@@ -121,7 +134,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 	// --- Grid with arrow navigation ---
 	const grid: Element = {
 		id: "grid",
-		col: 0, row: GRID_ROW, width: 32, height: NUM_STEPS,
+		col: 0,
+		row: GRID_ROW,
+		width: 32,
+		height: NUM_STEPS,
 		enabled: true,
 		children: stepChildren,
 		onKey: (key, path) => {
@@ -139,8 +155,12 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 
 			// --- Navigation ---
 			switch (key) {
-				case "ArrowUp": newR = Math.max(0, r - 1); break;
-				case "ArrowDown": newR = Math.min(NUM_STEPS - 1, r + 1); break;
+				case "ArrowUp":
+					newR = Math.max(0, r - 1);
+					break;
+				case "ArrowDown":
+					newR = Math.min(NUM_STEPS - 1, r + 1);
+					break;
 				case "ArrowLeft": {
 					let next = fIdx - 1;
 					while (next >= 0 && next >= 3) next--;
@@ -173,7 +193,7 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 						if (digit !== null) {
 							const { value, complete } = hexEntry.feed(digit);
 							const trackIdx = state.cursor.col;
-							const existing = pattern?.tracks[trackIdx]?.events.find(e => e.stepIndex === r);
+							const existing = pattern?.tracks[trackIdx]?.events.find((e) => e.stepIndex === r);
 
 							if (fieldName === "vel" && existing?.trig?.type === TrigType.NoteOn) {
 								const clamped = Math.min(value, 0x7f);
@@ -181,13 +201,24 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 									...existing,
 									trig: { ...existing.trig, velocity: clamped },
 								};
-								emit({ type: "setStep", patternIndex: state.activePatternIndex, trackIndex: trackIdx, stepIndex: r, step });
+								emit({
+									type: "setStep",
+									patternIndex: state.activePatternIndex,
+									trackIndex: trackIdx,
+									stepIndex: r,
+									step,
+								});
 							}
 
 							if (complete) {
 								const newRow = Math.min(r + state.stepSize, NUM_STEPS - 1);
 								setPath(["sequence", "grid", `${hexNibble(newRow)}-${fieldName}`]);
-								emit({ type: "setCursor", row: newRow, col: state.cursor.col, field: fieldToStepField[fIdx] ?? StepField.Note });
+								emit({
+									type: "setCursor",
+									row: newRow,
+									col: state.cursor.col,
+									field: fieldToStepField[fIdx] ?? StepField.Note,
+								});
 							}
 							return true;
 						}
@@ -206,7 +237,12 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 			const newId = `${hexNibble(newR)}-${fields[newF]}`;
 			if (newId !== cellId) {
 				setPath(["sequence", "grid", newId]);
-				emit({ type: "setCursor", row: newR, col: state.cursor.col, field: fieldToStepField[newF] ?? StepField.Note });
+				emit({
+					type: "setCursor",
+					row: newR,
+					col: state.cursor.col,
+					field: fieldToStepField[newF] ?? StepField.Note,
+				});
 			}
 			return true;
 		},
@@ -216,7 +252,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 	// --- Title ---
 	const titleEl: Element = {
 		id: "title",
-		col: 0, row: 0, width: 12, height: 1,
+		col: 0,
+		row: 0,
+		width: 12,
+		height: 1,
 		enabled: false,
 		draw: (display) => {
 			const idx = hexByte(state.activePatternIndex);
@@ -227,7 +266,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 	// --- Column headers ---
 	const headersEl: Element = {
 		id: "headers",
-		col: 0, row: 2, width: 32, height: 1,
+		col: 0,
+		row: 2,
+		width: 32,
+		height: 1,
 		enabled: false,
 		draw: (display) => {
 			display.drawText(NOTE_COL, 2, "N", ...C.label);
@@ -242,7 +284,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 	// --- Row labels ---
 	const rowLabelsEl: Element = {
 		id: "row-labels",
-		col: 0, row: GRID_ROW, width: 1, height: NUM_STEPS,
+		col: 0,
+		row: GRID_ROW,
+		width: 1,
+		height: NUM_STEPS,
 		enabled: false,
 		draw: (display) => {
 			for (let r = 0; r < NUM_STEPS; r++) {
@@ -256,7 +301,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 	// --- Row backgrounds ---
 	const rowBgEl: Element = {
 		id: "row-bg",
-		col: 0, row: GRID_ROW, width: 60, height: NUM_STEPS,
+		col: 0,
+		row: GRID_ROW,
+		width: 60,
+		height: NUM_STEPS,
 		enabled: false,
 		draw: (display) => {
 			for (let r = 0; r < NUM_STEPS; r++) {
@@ -273,7 +321,10 @@ export function buildSequenceView(state: TrackerState, emit: (a: Action) => void
 
 	return {
 		id: "sequence",
-		col: 0, row: 0, width: 60, height: 25,
+		col: 0,
+		row: 0,
+		width: 60,
+		height: 25,
 		enabled: true,
 		children: [rowBgEl, titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(state)],
 		draw: () => {},

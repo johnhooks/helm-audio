@@ -25,6 +25,9 @@ endif()
 # --- Engine library ---
 add_library(helm_audio STATIC
     src/voice.cpp
+    src/fm4/voice.cpp
+    src/fm4/modulation.cpp
+    src/fm4/voice_decoder.cpp
     src/sequencer.cpp
     src/modulation.cpp
     src/synth.cpp
@@ -66,7 +69,7 @@ if(EMSCRIPTEN)
         -sMODULARIZE=1
         -sNO_FILESYSTEM=1
         -sINITIAL_MEMORY=1048576
-        -sEXPORTED_RUNTIME_METHODS=['HEAPF32']
+        -sEXPORTED_RUNTIME_METHODS=['HEAPF32','HEAPU8']
         -sEXPORTED_FUNCTIONS=['_malloc','_free']
         --no-entry
     )
@@ -90,6 +93,7 @@ if(NOT EMSCRIPTEN)
     # --- Tests ---
     add_executable(tests
         tests/test_voice.cpp
+        tests/test_voice4op.cpp
         tests/test_sequencer.cpp
         tests/test_modulation.cpp
         tests/test_effects.cpp

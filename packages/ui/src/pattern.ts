@@ -21,7 +21,12 @@ function hexRow(n: number): string {
  *   Rows 3-18: 16 rows x 8 track chain grid
  *   Right panel: track activity, keyboard, PSI (chrome)
  */
-export function buildPatternView(state: TrackerState, emit: (a: Action) => void, setPath: (p: string[]) => void, hexEntry?: HexEntry): Element {
+export function buildPatternView(
+	state: TrackerState,
+	emit: (a: Action) => void,
+	setPath: (p: string[]) => void,
+	hexEntry?: HexEntry,
+): Element {
 	// --- Grid cell elements ---
 	const gridChildren: Element[] = [];
 
@@ -51,7 +56,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 	// --- Grid container with arrow navigation ---
 	const grid: Element = {
 		id: "grid",
-		col: 0, row: GRID_ROW, width: 27, height: NUM_ROWS,
+		col: 0,
+		row: GRID_ROW,
+		width: 27,
+		height: NUM_ROWS,
 		enabled: true,
 		children: gridChildren,
 		onKey: (key, path) => {
@@ -65,10 +73,18 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 			let newT = t;
 
 			switch (key) {
-				case "ArrowUp": newR = Math.max(0, r - 1); break;
-				case "ArrowDown": newR = Math.min(NUM_ROWS - 1, r + 1); break;
-				case "ArrowLeft": newT = Math.max(0, t - 1); break;
-				case "ArrowRight": newT = Math.min(NUM_TRACKS - 1, t + 1); break;
+				case "ArrowUp":
+					newR = Math.max(0, r - 1);
+					break;
+				case "ArrowDown":
+					newR = Math.min(NUM_ROWS - 1, r + 1);
+					break;
+				case "ArrowLeft":
+					newT = Math.max(0, t - 1);
+					break;
+				case "ArrowRight":
+					newT = Math.min(NUM_TRACKS - 1, t + 1);
+					break;
 				default: {
 					if (!state.editMode) return false;
 
@@ -109,7 +125,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 	// --- Title and row labels (non-focusable) ---
 	const titleEl: Element = {
 		id: "title",
-		col: 0, row: 0, width: 7, height: 1,
+		col: 0,
+		row: 0,
+		width: 7,
+		height: 1,
 		enabled: false,
 		draw: (display) => {
 			display.drawText(0, 0, "PATTERN", ...C.title);
@@ -118,7 +137,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 
 	const headersEl: Element = {
 		id: "headers",
-		col: 0, row: 2, width: 27, height: 1,
+		col: 0,
+		row: 2,
+		width: 27,
+		height: 1,
 		enabled: false,
 		draw: (display) => {
 			for (let t = 0; t < NUM_TRACKS; t++) {
@@ -129,7 +151,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 
 	const rowLabelsEl: Element = {
 		id: "row-labels",
-		col: 0, row: GRID_ROW, width: 2, height: NUM_ROWS,
+		col: 0,
+		row: GRID_ROW,
+		width: 2,
+		height: NUM_ROWS,
 		enabled: false,
 		draw: (display) => {
 			for (let r = 0; r < NUM_ROWS; r++) {
@@ -140,7 +165,10 @@ export function buildPatternView(state: TrackerState, emit: (a: Action) => void,
 
 	return {
 		id: "pattern",
-		col: 0, row: 0, width: 60, height: 25,
+		col: 0,
+		row: 0,
+		width: 60,
+		height: 25,
 		enabled: true,
 		children: [titleEl, headersEl, rowLabelsEl, grid, ...chromeElements(state)],
 		draw: () => {},
