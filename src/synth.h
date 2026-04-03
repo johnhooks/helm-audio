@@ -34,6 +34,8 @@ public:
     int GetNumTracks() const { return numTracks_; }
     float GetTempo() const { return bpm_; }
     bool IsPlaying() const { return playing_; }
+    int GetStep() const;
+    int GetPatternSwapCount() const { return patternSwapCount_; }
 
     // SequencerListener
     void onNoteOn(uint8_t track, uint8_t note, uint8_t velocity) override;
@@ -55,6 +57,7 @@ private:
     std::vector<Patch> patchBank_;
     Sequencer sequencer_;
     EffectBusPool buses_;
+    int patternSwapCount_ = 0;
 
     // Owned pattern storage for the protocol decoder path.
     // The sequencer holds raw Pattern* — these keep the data alive.

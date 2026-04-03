@@ -40,7 +40,7 @@ void Sequencer::SetPendingPattern(Pattern* pattern) {
 //
 // If both the current and peek fire on the same tick, both dispatch — current
 // first, then peek. No clamping, no reordering. When the cursor advances, the
-// peeked step becomes current — but since it has a negative offset, the
+// peeked step becomes current, but since it has a negative offset, the
 // >= 0 check on current naturally skips it. No flag needed.
 //
 // At loop/swap boundaries, PeekNextStep wraps to step 0 of the same pattern
@@ -63,7 +63,7 @@ void Sequencer::Advance(int numTicks) {
             int trackTick = tick_ % trackCycleTicks;
             int grid = state.cursor * kTicksPerStep;
 
-            // Current step — fires on positive/zero micro-timing offset.
+            // Current step fires on positive/zero micro-timing offset.
             // Steps with negative offsets already fired as a peek from the
             // previous cursor position, so the >= 0 check naturally skips them.
             const auto& current = track.steps[state.cursor];
@@ -108,7 +108,7 @@ const Step* Sequencer::PeekNextStep(int trackIndex, int cursor, int stepCount) {
         return &pattern_->tracks[trackIndex].steps[nextCursor];
     }
 
-    // At the last step — peek wraps.
+    // At the last step peek wraps.
     // If a pending pattern is queued and we're near the pattern boundary,
     // peek into the pending pattern's step 0 (if the track exists).
     if (pendingPattern_ != nullptr) {

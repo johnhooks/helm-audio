@@ -25,6 +25,9 @@ endif()
 # --- Engine library ---
 add_library(helm_audio STATIC
     src/voice.cpp
+    src/fm4/voice.cpp
+    src/fm4/modulation.cpp
+    src/fm4/voice_decoder.cpp
     src/sequencer.cpp
     src/modulation.cpp
     src/synth.cpp
@@ -52,6 +55,25 @@ if(EMSCRIPTEN)
         --no-entry
     )
     set_target_properties(helm_engine PROPERTIES SUFFIX ".mjs")
+
+    # Voice-only worklet (single voice + modulation, no sequencer)
+    add_executable(helm_voice src/voice_bridge.cpp)
+    target_link_libraries(helm_voice PRIVATE helm_audio)
+    target_link_options(helm_voice PRIVATE
+        --bind
+        -sWASM=1
+        -sSINGLE_FILE=1
+        -sALLOW_MEMORY_GROWTH=1
+        -sENVIRONMENT=worker
+        -sEXPORT_ES6=1
+        -sMODULARIZE=1
+        -sNO_FILESYSTEM=1
+        -sINITIAL_MEMORY=1048576
+        -sEXPORTED_RUNTIME_METHODS=['HEAPF32','HEAPU8']
+        -sEXPORTED_FUNCTIONS=['_malloc','_free']
+        --no-entry
+    )
+    set_target_properties(helm_voice PROPERTIES SUFFIX ".mjs")
 endif()
 
 # --- Native-only targets ---
@@ -71,6 +93,7 @@ if(NOT EMSCRIPTEN)
     # --- Tests ---
     add_executable(tests
         tests/test_voice.cpp
+        tests/test_voice4op.cpp
         tests/test_sequencer.cpp
         tests/test_modulation.cpp
         tests/test_effects.cpp

@@ -86,7 +86,7 @@ float Voice::Process() {
         return 0.0f;
     }
 
-    // Amplitude envelope — controls the overall volume of the voice.
+    // Amplitude envelope controls the overall volume of the voice.
     float envOut = env_.Process(gate_);
 
     if (!env_.IsRunning() && !gate_) {
@@ -98,14 +98,14 @@ float Voice::Process() {
     // --- FM synthesis: modulator → carrier via phase modulation ---
     //
     // Step 1: Run the modulator's envelope. This shapes the FM depth
-    // over time — e.g. a fast decay here means the sound starts bright
+    // over time e.g. a fast decay here means the sound starts bright
     // and mellows, even while the note is still sustaining.
     float modEnv = modulator_.env.Process(modulator_.gate);
 
     // Step 2: Apply self-feedback on the modulator (if enabled).
     // Feedback feeds the operator's previous output back into its own
     // phase, adding harmonics to the modulator itself. This makes the
-    // modulation source richer — like using a complex waveform instead
+    // modulation source richer, like using a complex waveform instead
     // of a pure sine. The 2-sample average smooths the feedback to
     // prevent it from going unstable too quickly.
     if (modulator_.feedback > 0.0f) {
@@ -131,7 +131,7 @@ float Voice::Process() {
     float modOut = modVal * modEnv * modulator_.level * index_ * kIdxScalar;
 
     // Step 5: Apply self-feedback on the carrier (if enabled).
-    // Carrier feedback adds harmonics directly to the audible output —
+    // Carrier feedback adds harmonics directly to the audible output
     // at low values it thickens the tone, at high values it approaches
     // a sawtooth-like waveform.
     if (carrier_.feedback > 0.0f) {
@@ -141,12 +141,12 @@ float Voice::Process() {
     }
 
     // Step 6: Add the modulator's output to the carrier's phase.
-    // This is phase modulation — the carrier's instantaneous phase
+    // This is phase modulation the carrier's instantaneous phase
     // is shifted by the modulator, creating sidebands (new harmonics).
     carrier_.osc.PhaseAdd(modOut);
 
     // Step 7: Generate the carrier's output, scaled by its envelope.
-    // The carrier envelope shapes the carrier's amplitude over time —
+    // The carrier envelope shapes the carrier's amplitude over time
     // independent of the voice's amplitude envelope. A fast carrier
     // decay gives a pluck character. A slow attack brightens over time.
     float carEnv = carrier_.env.Process(carrier_.gate);

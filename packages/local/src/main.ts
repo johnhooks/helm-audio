@@ -1,133 +1,110 @@
-import { createHelmNode, send } from "@helm-audio/worklet";
+import { Renderer, DisplayList, FONT_SMALL } from "@helm-audio/display";
 import {
-	encodePatchBank,
-	encodeTrigger,
-	TrigType,
-	LfoWaveform,
-	type Patch,
-	type OperatorPatch,
-	type LfoConfig,
-} from "@helm-audio/protocol";
+	TrackerStore,
+	createInitialState,
+	OpfsStorage,
+	extractProject,
+	applyProject,
+} from "@helm-audio/store";
+import { Orchestrator } from "@helm-audio/synth";
+import { Tracker } from "@helm-audio/ui";
 
-let node: AudioWorkletNode | null = null;
-let ctx: AudioContext | null = null;
+// --- Grid setup ---
 
-const status = document.getElementById("status");
+const COLUMNS = 60;
+const ROWS = 25;
 
-function setStatus(msg: string) {
-	if (status) status.textContent = msg;
-}
-
-const defaultOp: OperatorPatch = {
-	ratio: 1.0,
-	detune: 0,
-	level: 1.0,
-	feedback: 0,
-	attack: 0.01,
-	decay: 0.1,
-	sustain: 1.0,
-	release: 0.3,
-};
-
-const defaultLfo: LfoConfig = {
-	rate: 1.0,
-	waveform: LfoWaveform.Sine,
-	routes: [],
-};
-
-const patch: Patch = {
-	operators: [{ ...defaultOp }, { ...defaultOp, ratio: 2.0, level: 0.8, decay: 0.2, sustain: 0.4 }],
-	index: 1.5,
-	filterFreq: 4000,
-	filterRes: 0.2,
-	sends: [0, 0, 0, 0],
-	lfos: [defaultLfo, defaultLfo],
-	attack: 0.01,
-	decay: 0.3,
-	sustain: 0.6,
-	release: 0.5,
-};
-
-async function init() {
-	if (ctx) return;
-
-	setStatus("Initializing...");
-
-	try {
-		ctx = new AudioContext();
-
-		node = await createHelmNode(ctx, {
-			processorUrl: "/processor.js",
-		});
-
-		node.connect(ctx.destination);
-
-		send(node, encodePatchBank([patch]));
-
-		setStatus(`Engine ready. Sample rate: ${String(ctx.sampleRate)} Hz. Click a note.`);
-	} catch (err: unknown) {
-		setStatus(`Error: ${String(err)}`);
-		console.error(err);
-	}
-}
-
-document.getElementById("start")?.addEventListener("click", () => {
-	void init();
+const canvas = document.getElementById("display") as HTMLCanvasElement;
+const renderer = new Renderer({
+	canvas,
+	columns: COLUMNS,
+	rows: ROWS,
+	font: FONT_SMALL,
+	fontUrl: "/font-small.png",
+	background: [10, 10, 10],
 });
 
-// Note buttons — mousedown triggers, mouseup releases
-for (const btn of document.querySelectorAll<HTMLButtonElement>(".note")) {
-	const note = parseInt(btn.dataset.note ?? "60", 10);
+const display = new DisplayList(COLUMNS, ROWS);
 
-	btn.addEventListener("mousedown", () => {
-		if (!node) return;
-		send(
-			node,
-			encodeTrigger({
-				track: 0,
-				patchIndex: 0,
-				trig: { type: TrigType.NoteOn, note, velocity: 100 },
-			}),
-		);
-		btn.classList.add("active");
-	});
+// --- Storage ---
 
-	btn.addEventListener("mouseup", () => {
-		if (!node) return;
-		send(
-			node,
-			encodeTrigger({
-				track: 0,
-				trig: { type: TrigType.NoteOff },
-			}),
-		);
-		btn.classList.remove("active");
-	});
+const storage = new OpfsStorage();
 
-	btn.addEventListener("mouseleave", () => {
-		if (!node) return;
-		send(
-			node,
-			encodeTrigger({
-				track: 0,
-				trig: { type: TrigType.NoteOff },
-			}),
-		);
-		btn.classList.remove("active");
-	});
+async function loadProject(): Promise<TrackerStore> {
+	const project = await storage.load();
+	const state = project ? applyProject(project) : createInitialState(8);
+	return new TrackerStore(state);
 }
 
-// Release button
-document.getElementById("release")?.addEventListener("click", () => {
-	if (!node) return;
-	send(
-		node,
-		encodeTrigger({
-			track: 0,
-			trig: { type: TrigType.NoteOff },
-		}),
-	);
-	for (const btn of document.querySelectorAll<HTMLButtonElement>(".note")) {
-		btn.classList.remove("active");
+// --- Boot ---
+
+async function boot(): Promise<void> {
+	const store = await loadProject();
+
+	// Boot audio engine
+	const orchestrator = await Orchestrator.create({
+		voiceProcessorUrl: "/voice-processor.js",
+		workerUrl: "/sequencer-worker.js",
+	});
+	store.connectOrchestrator(orchestrator);
+	store.syncAll();
+
+	// Resume AudioContext on first user interaction (browser policy)
+	const resumeOnce = () => {
+		if (orchestrator.context.state === "suspended") {
+			void orchestrator.context.resume();
+		}
+		document.removeEventListener("keydown", resumeOnce);
+		document.removeEventListener("mousedown", resumeOnce);
+	};
+	document.addEventListener("keydown", resumeOnce);
+	document.addEventListener("mousedown", resumeOnce);
+
+	const ui = new Tracker(store);
+
+	// --- Auto-save (debounced) ---
+
+	let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+	ui.onAction = () => {
+		if (saveTimer) clearTimeout(saveTimer);
+		saveTimer = setTimeout(() => {
+			void storage.save(extractProject(store.state));
+		}, 1000);
+	};
+
+	// --- Input ---
+
+	document.addEventListener("keydown", (e) => {
+		if (ui.handleKeyDown(e)) {
+			e.preventDefault();
+		}
+	});
+	document.addEventListener("keyup", (e) => {
+		if (ui.handleKeyUp(e)) {
+			e.preventDefault();
+		}
+	});
+
+	// --- Render loop ---
+
+	renderer.onReady = () => {
+		ui.dirty = true;
+	};
+	renderer.resize();
+	window.addEventListener("resize", () => {
+		renderer.resize();
+		ui.dirty = true;
+	});
+
+	function frame(_now: number) {
+		requestAnimationFrame(frame);
+		if (!ui.dirty) return;
+		ui.draw(display);
+		renderer.draw(display);
 	}
-});
+
+	requestAnimationFrame(frame);
+}
+
+void boot();

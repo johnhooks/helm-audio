@@ -1,0 +1,188 @@
+import type { DisplayList } from "@helm-audio/display";
+import type { TrackerStore } from "@helm-audio/store";
+import { Page, type Action } from "@helm-audio/types";
+import type { Element } from "./element.ts";
+import { dispatchKey, drawAll } from "./element.ts";
+import { buildPatternView } from "./pattern.ts";
+import { buildSequenceView } from "./sequence.ts";
+import { buildInstrumentView } from "./instrument.ts";
+import { HexEntry } from "./hex-input.ts";
+import { scancodeToNote } from "./keys.ts";
+
+const PAGE_ORDER = [Page.Pattern, Page.Sequence, Page.Instrument];
+
+const DEFAULT_PATHS: Record<number, string[]> = {
+	[Page.Pattern]: ["pattern", "grid", "00-0"],
+	[Page.Sequence]: ["sequence", "grid", "0-note"],
+	[Page.Instrument]: ["instrument", "header", "type"],
+};
+
+/**
+ * Top-level UI controller. Owns the document model, focus state,
+ * key dispatch, and view rendering.
+ *
+ * The shell creates a Tracker, passes events to it, and calls draw()
+ * each frame. Actions emitted by views are dispatched to the store
+ * and forwarded to the onAction callback for the shell to route
+ * to worklets.
+ */
+export class Tracker {
+	dirty = true;
+	focusPath: string[];
+
+	/** Shell-provided callback for actions that need routing beyond the store. */
+	onAction?: (action: Action) => void;
+
+	private store: TrackerStore;
+	private view: Element;
+
+	/** Shared hex entry state for two-nibble byte fields. Reset on cursor move. */
+	readonly hexEntry = new HexEntry();
+
+	/*
+	 * Keyjazz: maps held key codes to the track they triggered on.
+	 */
+	private heldKeys = new Map<string, number>();
+
+	constructor(store: TrackerStore) {
+		this.store = store;
+		this.focusPath = DEFAULT_PATHS[store.state.page];
+		this.view = this.buildView();
+		store.onDirty = () => {
+			this.dirty = true;
+		};
+	}
+
+	/** Handle a raw keyboard event. Returns true if the event was consumed. */
+	handleKeyDown(e: KeyboardEvent): boolean {
+		const key = normalizeKey(e);
+
+		// Global: page switching
+		if (key === "Shift+ArrowLeft") {
+			this.prevPage();
+			return true;
+		}
+		if (key === "Shift+ArrowRight") {
+			this.nextPage();
+			return true;
+		}
+
+		// Global: edit mode toggle
+		if (key === "Space") {
+			this.emit({ type: "toggleEditMode" });
+			return true;
+		}
+
+		// Global: transport
+		if (key === "F5") {
+			this.emit({ type: "play" });
+			return true;
+		}
+		if (key === "F6") {
+			this.emit({ type: "stop" });
+			return true;
+		}
+		if (key === "F7") {
+			this.emit({ type: "restart" });
+			return true;
+		}
+
+		// Dispatch through element tree with scope bubbling
+		if (dispatchKey(this.view, this.focusPath, key)) {
+			this.dirty = true;
+			return true;
+		}
+
+		// Keyjazz: note keys trigger audio preview when not in edit mode
+		if (!this.store.state.editMode) {
+			const note = scancodeToNote(key, this.store.state.octave);
+			if (note !== null) {
+				const track = this.store.state.cursor.col;
+				this.store.noteOn(track, note);
+				this.heldKeys.set(e.code, track);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/*
+	 * Handle a raw key release. Returns true if the event was consumed.
+	 */
+	handleKeyUp(e: KeyboardEvent): boolean {
+		const track = this.heldKeys.get(e.code);
+		if (track !== undefined) {
+			this.store.noteOff(track);
+			this.heldKeys.delete(e.code);
+			return true;
+		}
+		return false;
+	}
+
+	/** Draw the current view into a DisplayList. */
+	draw(display: DisplayList): void {
+		this.view = this.buildView();
+		display.clear();
+		drawAll(display, this.view, this.focusPath);
+		this.dirty = false;
+	}
+
+	// --- Page management ---
+
+	switchPage(page: Page): void {
+		this.emit({ type: "setPage", page });
+		this.focusPath = DEFAULT_PATHS[page];
+		this.view = this.buildView();
+		this.dirty = true;
+	}
+
+	nextPage(): void {
+		const idx = PAGE_ORDER.indexOf(this.store.state.page);
+		this.switchPage(PAGE_ORDER[(idx + 1) % PAGE_ORDER.length]);
+	}
+
+	prevPage(): void {
+		const idx = PAGE_ORDER.indexOf(this.store.state.page);
+		this.switchPage(PAGE_ORDER[(idx - 1 + PAGE_ORDER.length) % PAGE_ORDER.length]);
+	}
+
+	// --- Internals ---
+
+	private emit = (action: Action): void => {
+		this.store.dispatch(action);
+		this.onAction?.(action);
+		this.dirty = true;
+	};
+
+	private setPath = (path: string[]): void => {
+		this.focusPath = path;
+		this.hexEntry.reset();
+		this.dirty = true;
+	};
+
+	private buildView(): Element {
+		const { state } = this.store;
+		switch (state.page) {
+			case Page.Pattern:
+				return buildPatternView(state, this.emit, this.setPath, this.hexEntry);
+			case Page.Sequence:
+				return buildSequenceView(state, this.emit, this.setPath, this.hexEntry);
+			case Page.Instrument:
+				return buildInstrumentView(state, this.emit, this.setPath);
+			default:
+				return buildSequenceView(state, this.emit, this.setPath, this.hexEntry);
+		}
+	}
+}
+
+// --- Key normalization ---
+
+function normalizeKey(e: KeyboardEvent): string {
+	const parts: string[] = [];
+	if (e.ctrlKey) parts.push("Ctrl");
+	if (e.altKey) parts.push("Alt");
+	if (e.shiftKey) parts.push("Shift");
+	parts.push(e.code);
+	return parts.join("+");
+}

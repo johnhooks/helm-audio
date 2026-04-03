@@ -1,0 +1,26 @@
+{
+	"name": "@helm-audio/sequencer",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./worker": "./dist/worker.js"
+	},
+	"scripts": {
+		"build": "rollup -c"
+	},
+	"dependencies": {
+		"@helm-audio/lib": "workspace:*",
+		"@helm-audio/protocol": "workspace:*",
+		"@helm-audio/types": "workspace:*"
+	},
+	"devDependencies": {
+		"@rollup/plugin-node-resolve": "^16.0.3",
+		"rollup": "^4.60.0",
+		"rollup-plugin-esbuild": "^6.2.1"
+	}
+}

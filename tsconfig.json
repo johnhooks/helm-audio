@@ -1,8 +1,16 @@
 {
 	"files": [],
 	"references": [
+		{ "path": "packages/lib" },
+		{ "path": "packages/types" },
 		{ "path": "packages/protocol" },
 		{ "path": "packages/worklet" },
+		{ "path": "packages/voice" },
+		{ "path": "packages/display" },
+		{ "path": "packages/store" },
+		{ "path": "packages/sequencer" },
+		{ "path": "packages/synth" },
+		{ "path": "packages/ui" },
 		{ "path": "packages/local" }
 	]
 }

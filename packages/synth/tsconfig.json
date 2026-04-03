@@ -1,0 +1,17 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"composite": true,
+		"outDir": "dist",
+		"rootDir": "src",
+		"lib": ["ES2024", "DOM"]
+	},
+	"include": ["src"],
+	"exclude": ["dist", "node_modules"],
+	"references": [
+		{ "path": "../protocol" },
+		{ "path": "../sequencer" },
+		{ "path": "../types" },
+		{ "path": "../voice" }
+	]
+}

@@ -13,6 +13,7 @@ export default tseslint.config(
 						"packages/*/tsup.config.ts",
 						"packages/*/vite.config.ts",
 						"packages/*/rollup.config.js",
+						"packages/ui/src/*.test.ts",
 					],
 					defaultProject: "tsconfig.base.json",
 				},

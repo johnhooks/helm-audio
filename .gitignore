@@ -7,11 +7,15 @@ bun.lock
 packages/*/dist/
 packages/worklet/wasm/
 packages/local/public/processor.js
+packages/local/public/voice-processor.js
+packages/local/public/sequencer-worker.js
 
 *.tsbuildinfo
 .rollup.cache
 
 .idea
+
 docs/plans/.wip
+docs/ideas/.wip
 
 .DS_Store

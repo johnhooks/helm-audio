@@ -1,0 +1,11 @@
+export const PATTERNS_PER_BANK = 16;
+export const NUM_BANKS = 4;
+export const MAX_PATTERNS = PATTERNS_PER_BANK * NUM_BANKS; // 64
+export const MAX_TRACKS = 16;
+export const DEFAULT_STEP_COUNT = 16;
+export const DEFAULT_PATTERN_LENGTH = 16;
+export const DEFAULT_TEMPO = 120;
+export const DEFAULT_OCTAVE = 4;
+export const DEFAULT_STEP_SIZE = 1;
+export const DEFAULT_NOTE_LENGTH = 6; // ticks per step (PPQ/4)
+export const MAX_UNDO = 64;

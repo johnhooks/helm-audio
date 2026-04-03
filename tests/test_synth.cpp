@@ -229,6 +229,71 @@ TEST_CASE("QueuePattern with wrong track count throws") {
     CHECK_NOTHROW(synth.QueuePattern(&justRight));
 }
 
+TEST_CASE("GetStep advances during playback") {
+    // Build a pattern with a NoteOn at step 0
+    Pattern pattern;
+    pattern.length = 16;
+    pattern.tracks.resize(2);
+    pattern.tracks[0].steps.resize(16);
+    pattern.tracks[1].steps.resize(16);
+
+    Synth synth;
+    synth.Init(kSampleRate, &pattern);
+    synth.SetTempo(120.0f);
+
+    CHECK(synth.GetStep() == 0);
+
+    synth.Play();
+
+    // At 120 BPM, 48kHz, 24 PPQ: ticksPerSample = 0.001
+    // One tick every 1000 samples. One step = 6 ticks = 6000 samples.
+    // Process 7000 samples — should be on step 1.
+    std::vector<float> left(7000, 0.0f);
+    std::vector<float> right(7000, 0.0f);
+    synth.Process(left.data(), right.data(), 7000);
+
+    CHECK(synth.GetStep() == 1);
+}
+
+TEST_CASE("GetPatternSwapCount increments on pattern swap") {
+    Pattern patternA = makeEmptyPattern(2, 4);  // 4-step pattern
+    Synth synth;
+    synth.Init(kSampleRate, &patternA);
+    synth.SetTempo(120.0f);
+
+    CHECK(synth.GetPatternSwapCount() == 0);
+
+    // Queue a new pattern
+    Pattern patternB = makeEmptyPattern(2, 4);
+    synth.QueuePattern(&patternB);
+
+    synth.Play();
+
+    // Process enough samples to complete one loop of the 4-step pattern.
+    // 4 steps × 6 ticks × 1000 samples/tick = 24000 samples.
+    // Add margin to ensure the boundary is crossed.
+    std::vector<float> left(26000, 0.0f);
+    std::vector<float> right(26000, 0.0f);
+    synth.Process(left.data(), right.data(), 26000);
+
+    CHECK(synth.GetPatternSwapCount() == 1);
+}
+
+TEST_CASE("GetPatternSwapCount does not increment on normal loop") {
+    Pattern pattern = makeEmptyPattern(2, 4);  // 4-step pattern
+    Synth synth;
+    synth.Init(kSampleRate, &pattern);
+    synth.SetTempo(120.0f);
+    synth.Play();
+
+    // Process enough for two full loops (no pending pattern)
+    std::vector<float> left(50000, 0.0f);
+    std::vector<float> right(50000, 0.0f);
+    synth.Process(left.data(), right.data(), 50000);
+
+    CHECK(synth.GetPatternSwapCount() == 0);
+}
+
 TEST_CASE("Out-of-range bus index throws") {
     Pattern pattern = makeEmptyPattern(2);
     Synth synth;

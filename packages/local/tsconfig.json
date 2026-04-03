@@ -8,5 +8,11 @@
 	},
 	"include": ["src"],
 	"exclude": ["dist", "node_modules"],
-	"references": [{ "path": "../protocol" }, { "path": "../worklet" }]
+	"references": [
+		{ "path": "../display" },
+		{ "path": "../protocol" },
+		{ "path": "../synth" },
+		{ "path": "../types" },
+		{ "path": "../worklet" }
+	]
 }
