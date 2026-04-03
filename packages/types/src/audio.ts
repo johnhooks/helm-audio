@@ -94,6 +94,10 @@ export interface Step {
 	patchIndex?: number;
 	trig?: Trig;
 	locks?: ParamLock[];
+	/*
+	 * Note duration in ticks. undefined = infinite (no auto note-off).
+	 */
+	length?: number;
 }
 
 export interface Track {

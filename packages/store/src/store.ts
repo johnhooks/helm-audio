@@ -1,7 +1,7 @@
 import { TrigType, type PatternData, type BusSetup, type Step } from "@helm-audio/protocol";
 import type { Orchestrator } from "@helm-audio/synth";
 import type { fm4, Action } from "@helm-audio/types";
-import { MAX_PATTERNS, MAX_UNDO } from "./constants.ts";
+import { DEFAULT_NOTE_LENGTH, MAX_PATTERNS, MAX_UNDO } from "./constants.ts";
 import { StepField, type TrackerState, type UndoGroup } from "./types.ts";
 
 /**
@@ -17,7 +17,9 @@ export class TrackerStore {
 	/** Timestamp of the last animation trigger. */
 	animatingUntil = 0;
 
-	/** Called whenever state changes. Set by the shell to trigger redraws. */
+	/*
+	 * Called whenever state changes. Set by the shell to trigger redraws.
+	 */
 	onDirty: (() => void) | null = null;
 
 	private orchestrator: Orchestrator | null = null;
@@ -26,7 +28,9 @@ export class TrackerStore {
 		this.state = initialState;
 	}
 
-	/** Connect to the audio orchestrator. Call once after Orchestrator.create resolves. */
+	/*
+	 * Connect to the audio orchestrator. Call once after Orchestrator.create resolves.
+	 */
 	connectOrchestrator(orch: Orchestrator): void {
 		this.orchestrator = orch;
 		orch.onStepReport((step) => {
@@ -34,7 +38,9 @@ export class TrackerStore {
 		});
 	}
 
-	/** Send the full current state to the engine (patches, pattern, tempo). */
+	/*
+	 * Send the full current state to the engine (patches, pattern, tempo).
+	 */
 	syncAll(): void {
 		if (!this.orchestrator) return;
 		this.orchestrator.loadPatchBank(this.state.patches);
@@ -130,6 +136,16 @@ export class TrackerStore {
 		}
 	}
 
+	// --- Keyjazz ---
+
+	noteOn(track: number, note: number): void {
+		this.orchestrator?.noteOn(track, note, 0x7f);
+	}
+
+	noteOff(track: number): void {
+		this.orchestrator?.noteOff(track);
+	}
+
 	// --- Transport ---
 
 	play(): void {
@@ -195,12 +211,10 @@ export class TrackerStore {
 		const step: Step = {
 			stepIndex: s.cursor.row,
 			trig: { type: TrigType.NoteOn, note, velocity: 0x7f },
+			length: DEFAULT_NOTE_LENGTH,
 		};
 
 		this.setStep(s.activePatternIndex, s.cursor.col, s.cursor.row, step);
-
-		// Preview the note (keyjazz — bypasses sequencer)
-		this.orchestrator?.noteOn(s.cursor.col, note, 0x7f);
 
 		// Advance cursor
 		if (s.stepSize > 0) {
@@ -441,7 +455,11 @@ export class TrackerStore {
 	private sendActivePattern(): void {
 		const pattern = this.getActivePattern();
 		if (pattern) {
-			this.orchestrator?.loadPattern(pattern);
+			if (this.state.playing) {
+				this.orchestrator?.updatePattern(pattern);
+			} else {
+				this.orchestrator?.loadPattern(pattern);
+			}
 		}
 	}
 

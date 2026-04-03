@@ -115,6 +115,13 @@ export class Orchestrator {
 		this.#sendControl({ type: "loadPatternImmediate", pattern });
 	}
 
+	/*
+	 * Update pattern data in place without resetting playback position.
+	 */
+	updatePattern(pattern: PatternData): void {
+		this.#sendControl({ type: "updatePattern", pattern });
+	}
+
 	setTempo(bpm: number): void {
 		this.#sendControl({ type: "setTempo", bpm });
 	}

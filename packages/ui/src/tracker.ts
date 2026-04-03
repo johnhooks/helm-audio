@@ -7,6 +7,7 @@ import { buildPatternView } from "./pattern.ts";
 import { buildSequenceView } from "./sequence.ts";
 import { buildInstrumentView } from "./instrument.ts";
 import { HexEntry } from "./hex-input.ts";
+import { scancodeToNote } from "./keys.ts";
 
 const PAGE_ORDER = [Page.Pattern, Page.Sequence, Page.Instrument];
 
@@ -37,6 +38,11 @@ export class Tracker {
 
 	/** Shared hex entry state for two-nibble byte fields. Reset on cursor move. */
 	readonly hexEntry = new HexEntry();
+
+	/*
+	 * Keyjazz: maps held key codes to the track they triggered on.
+	 */
+	private heldKeys = new Map<string, number>();
 
 	constructor(store: TrackerStore) {
 		this.store = store;
@@ -87,6 +93,30 @@ export class Tracker {
 			return true;
 		}
 
+		// Keyjazz: note keys trigger audio preview when not in edit mode
+		if (!this.store.state.editMode) {
+			const note = scancodeToNote(key, this.store.state.octave);
+			if (note !== null) {
+				const track = this.store.state.cursor.col;
+				this.store.noteOn(track, note);
+				this.heldKeys.set(e.code, track);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/*
+	 * Handle a raw key release. Returns true if the event was consumed.
+	 */
+	handleKeyUp(e: KeyboardEvent): boolean {
+		const track = this.heldKeys.get(e.code);
+		if (track !== undefined) {
+			this.store.noteOff(track);
+			this.heldKeys.delete(e.code);
+			return true;
+		}
 		return false;
 	}
 

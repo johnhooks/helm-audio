@@ -25,7 +25,7 @@ import { Sequencer, type SequencerListener } from "./sequencer.ts";
 // --- Mock listener ---
 
 interface Event {
-	type: "loadPatch" | "trig";
+	type: "loadPatch" | "trig" | "noteOff";
 	track: number;
 	trig?: Trig;
 	locks?: ParamLock[];
@@ -41,6 +41,10 @@ class MockListener implements SequencerListener {
 
 	onTrig(track: number, trig: Trig | undefined, locks: ParamLock[] | undefined): void {
 		this.events.push({ type: "trig", track, trig, locks });
+	}
+
+	onNoteOff(track: number): void {
+		this.events.push({ type: "noteOff", track });
 	}
 
 	clear(): void {
@@ -565,5 +569,109 @@ describe("sequencer", () => {
 		expect(ticks[0][0].trig?.type).toBe(TrigType.NoteOn);
 		expect(ticks[6][0].trig?.type).toBe(TrigType.NoteOff);
 		expect(ticks[12][0].trig?.type).toBe(TrigType.FadeOut);
+	});
+
+	it("auto note-off fires after step length", () => {
+		const steps: Step[] = [
+			{
+				stepIndex: 0,
+				trig: { type: TrigType.NoteOn, note: 60, velocity: 100 },
+				length: 6, // one step
+			},
+		];
+		const pattern = makePattern(steps, 4);
+		const listener = new MockListener();
+		const seq = new Sequencer(listener);
+		seq.loadPattern(pattern);
+
+		const ticks = advanceAndCollect(seq, listener, 24);
+
+		// NoteOn at tick 0
+		expect(ticks[0]).toHaveLength(1);
+		expect(ticks[0][0].trig?.type).toBe(TrigType.NoteOn);
+
+		// Auto note-off at tick 6
+		expect(ticks[6]).toHaveLength(1);
+		expect(ticks[6][0].type).toBe("noteOff");
+	});
+
+	it("auto note-off does not fire for steps without length", () => {
+		const steps: Step[] = [
+			{
+				stepIndex: 0,
+				trig: { type: TrigType.NoteOn, note: 60, velocity: 100 },
+				// no length — infinite sustain
+			},
+		];
+		const pattern = makePattern(steps, 4);
+		const listener = new MockListener();
+		const seq = new Sequencer(listener);
+		seq.loadPattern(pattern);
+
+		const ticks = advanceAndCollect(seq, listener, 24);
+
+		// NoteOn at tick 0, no note-off anywhere
+		expect(ticks[0]).toHaveLength(1);
+		for (let i = 1; i < 24; i++) {
+			const noteOffs = ticks[i].filter((e) => e.type === "noteOff");
+			expect(noteOffs).toHaveLength(0);
+		}
+	});
+
+	it("new note-on cancels pending note-off", () => {
+		const steps: Step[] = [
+			{
+				stepIndex: 0,
+				trig: { type: TrigType.NoteOn, note: 60, velocity: 100 },
+				length: 12, // two steps
+			},
+			{
+				stepIndex: 1,
+				trig: { type: TrigType.NoteOn, note: 64, velocity: 100 },
+				length: 6,
+			},
+		];
+		const pattern = makePattern(steps, 4);
+		const listener = new MockListener();
+		const seq = new Sequencer(listener);
+		seq.loadPattern(pattern);
+
+		const ticks = advanceAndCollect(seq, listener, 24);
+
+		// NoteOn at tick 0
+		expect(ticks[0][0].trig?.type).toBe(TrigType.NoteOn);
+
+		// NoteOn at tick 6 (retrigger — the pending off at tick 12 is replaced)
+		expect(ticks[6][0].trig?.type).toBe(TrigType.NoteOn);
+
+		// Note-off at tick 12 (from second note's length, not the first)
+		expect(ticks[12]).toHaveLength(1);
+		expect(ticks[12][0].type).toBe("noteOff");
+	});
+
+	it("pending note-offs are cancelled on pattern loop", () => {
+		const steps: Step[] = [
+			{
+				stepIndex: 3, // last step
+				trig: { type: TrigType.NoteOn, note: 60, velocity: 100 },
+				length: 12, // would extend past pattern boundary
+			},
+		];
+		const pattern = makePattern(steps, 4);
+		const listener = new MockListener();
+		const seq = new Sequencer(listener);
+		seq.loadPattern(pattern);
+
+		// First loop: 24 ticks
+		const ticks1 = advanceAndCollect(seq, listener, 24);
+		expect(ticks1[18][0].trig?.type).toBe(TrigType.NoteOn);
+
+		// Second loop: note-off at tick 30 (= 18+12) should NOT fire
+		// because noteOffAt was cancelled at loop boundary
+		const ticks2 = advanceAndCollect(seq, listener, 24);
+		for (let i = 0; i < 24; i++) {
+			const noteOffs = ticks2[i].filter((e) => e.type === "noteOff");
+			expect(noteOffs).toHaveLength(0);
+		}
 	});
 });

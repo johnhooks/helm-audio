@@ -80,6 +80,11 @@ async function boot(): Promise<void> {
 			e.preventDefault();
 		}
 	});
+	document.addEventListener("keyup", (e) => {
+		if (ui.handleKeyUp(e)) {
+			e.preventDefault();
+		}
+	});
 
 	// --- Render loop ---
 

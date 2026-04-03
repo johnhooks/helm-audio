@@ -132,6 +132,14 @@ describe("enterNote", () => {
 		expect(step?.patchIndex).toBeUndefined();
 	});
 
+	it("sets default note length", () => {
+		const store = makeStore();
+		store.dispatch({ type: "enterNote", note: 60 });
+
+		const step = store.getStepAt(0, 0);
+		expect(step?.length).toBe(6);
+	});
+
 	it("writes to the correct track based on cursor.col", () => {
 		const store = makeStore();
 		store.dispatch({ type: "setCursor", row: 0, col: 3, field: StepField.Note });

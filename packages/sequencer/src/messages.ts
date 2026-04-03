@@ -14,6 +14,7 @@ export interface InitMessage {
 export type ControlMessage =
 	| { type: "loadPattern"; pattern: PatternData }
 	| { type: "loadPatternImmediate"; pattern: PatternData }
+	| { type: "updatePattern"; pattern: PatternData }
 	| { type: "setPatchBank"; patches: fm4.Patch[] }
 	| { type: "setTempo"; bpm: number }
 	| { type: "transport"; command: TransportCommand };

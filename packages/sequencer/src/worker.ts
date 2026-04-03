@@ -69,6 +69,9 @@ function boot(init: InitMessage): void {
 				}),
 			);
 		},
+		onNoteOff(track) {
+			sendVoice(track, encodeVoiceNoteOff());
+		},
 	};
 
 	// --- Sequencer + clock ---
@@ -104,7 +107,11 @@ function boot(init: InitMessage): void {
 			case "loadPatternImmediate": {
 				sequencer.loadPattern(data.pattern);
 				primeVoices(data.pattern);
+				break;
+			}
 
+			case "updatePattern": {
+				sequencer.updatePattern(data.pattern);
 				break;
 			}
 

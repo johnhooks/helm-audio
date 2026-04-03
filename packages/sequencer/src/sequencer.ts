@@ -14,7 +14,13 @@
  */
 
 import { assert } from "@helm-audio/lib";
-import { type Trig, type PatternData, type Step, type ParamLock } from "@helm-audio/types";
+import {
+	TrigType,
+	type Trig,
+	type PatternData,
+	type Step,
+	type ParamLock,
+} from "@helm-audio/types";
 
 /** Ticks per quarter note. */
 export const PPQ = 24;
@@ -25,11 +31,16 @@ export const TICKS_PER_STEP = PPQ / 4; // 6
 export interface SequencerListener {
 	onLoadPatch(track: number, patchIndex: number): void;
 	onTrig(track: number, trig: Trig | undefined, locks: ParamLock[] | undefined): void;
+	onNoteOff(track: number): void;
 }
 
 interface TrackState {
 	cursor: number;
 	loopCount: number;
+	/*
+	 * Tick at which to fire an auto note-off. -1 = none pending.
+	 */
+	noteOffAt: number;
 }
 
 export class Sequencer {
@@ -68,6 +79,13 @@ export class Sequencer {
 		this.#resetTrackStates();
 	}
 
+	/*
+	 * Replace pattern data in place without resetting position. For live editing.
+	 */
+	updatePattern(pattern: PatternData): void {
+		this.#pattern = pattern;
+	}
+
 	/** Queue a pattern to swap at the next loop boundary. */
 	setPendingPattern(pattern: PatternData): void {
 		this.#pendingPattern = pattern;
@@ -89,9 +107,17 @@ export class Sequencer {
 
 		for (let i = 0; i < pattern.tracks.length; i++) {
 			const track = pattern.tracks[i];
+			const state = this.#trackStates[i];
+
+			// 0. Pending note-off — fires before new trigs so a retrigger
+			//    on the same tick works cleanly (off then on).
+			if (state.noteOffAt === this.#tick) {
+				this.#listener.onNoteOff(i);
+				state.noteOffAt = -1;
+			}
+
 			if (track.events.length === 0 && track.stepCount === 0) continue;
 
-			const state = this.#trackStates[i];
 			const stepCount = track.stepCount;
 			const trackCycleTicks = stepCount * TICKS_PER_STEP;
 			const trackTick = this.#tick % trackCycleTicks;
@@ -162,6 +188,11 @@ export class Sequencer {
 			this.#listener.onLoadPatch(trackIndex, step.patchIndex);
 		}
 		this.#listener.onTrig(trackIndex, step.trig, step.locks);
+
+		// Schedule auto note-off if step has a length
+		if (step.trig?.type === TrigType.NoteOn && step.length !== undefined) {
+			this.#trackStates[trackIndex].noteOffAt = this.#tick + step.length;
+		}
 	}
 
 	#checkLoopBoundary(): void {
@@ -176,9 +207,10 @@ export class Sequencer {
 				this.#pendingPattern = null;
 				this.#resetTrackStates();
 			} else {
-				// Loop: reset cursors, preserve loopCount
+				// Loop: reset cursors, preserve loopCount, cancel pending note-offs
 				for (const state of this.#trackStates) {
 					state.cursor = 0;
+					state.noteOffAt = -1;
 				}
 			}
 			this.#tick = 0;
@@ -187,7 +219,7 @@ export class Sequencer {
 
 	#resetTrackStates(): void {
 		this.#trackStates = this.#pattern
-			? this.#pattern.tracks.map(() => ({ cursor: 0, loopCount: 0 }))
+			? this.#pattern.tracks.map(() => ({ cursor: 0, loopCount: 0, noteOffAt: -1 }))
 			: [];
 	}
 }

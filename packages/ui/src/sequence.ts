@@ -18,10 +18,11 @@ const NUM_STEPS = 16;
 // Column offsets within a track group
 const NOTE_COL = 2;
 const VEL_COL = 6;
-const PATCH_COL = 9;
-const FX1_COL = 12;
-const FX2_COL = 19;
-const FX3_COL = 26;
+const LEN_COL = 9;
+const PATCH_COL = 12;
+const FX1_COL = 15;
+const FX2_COL = 22;
+const FX3_COL = 29;
 
 const NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
 
@@ -57,15 +58,16 @@ export function buildSequenceView(
 	setPath: (p: string[]) => void,
 	hexEntry?: HexEntry,
 ): Element {
-	const fields = ["note", "vel", "patch", "fx1", "fx2", "fx3"];
-	const fieldCols = [NOTE_COL, VEL_COL, PATCH_COL, FX1_COL, FX2_COL, FX3_COL];
-	const fieldWidths = [3, 2, 2, 5, 5, 5];
+	const fields = ["note", "vel", "len", "patch", "fx1", "fx2", "fx3"];
+	const fieldCols = [NOTE_COL, VEL_COL, LEN_COL, PATCH_COL, FX1_COL, FX2_COL, FX3_COL];
+	const fieldWidths = [3, 2, 2, 2, 5, 5, 5];
 	// Map field array index to StepField enum for cursor sync
 	const fieldToStepField: Record<number, StepField> = {
 		0: StepField.Note,
 		1: StepField.Velocity,
-		2: StepField.Patch,
-		3: StepField.Lock, // fx1 — closest mapping for now
+		2: StepField.Length,
+		3: StepField.Patch,
+		4: StepField.Lock, // fx1 — closest mapping for now
 	};
 
 	const pattern = state.patterns[state.activePatternIndex] ?? null;
@@ -77,7 +79,7 @@ export function buildSequenceView(
 		for (let f = 0; f < fields.length; f++) {
 			const row = r;
 			const fieldName = fields[f];
-			const fxField = f >= 3;
+			const fxField = f >= 4;
 
 			stepChildren.push({
 				id: `${hexNibble(row)}-${fieldName}`,
@@ -108,6 +110,14 @@ export function buildSequenceView(
 							if (trig && isNoteOn(trig)) {
 								text = hexByte(trig.velocity);
 								color = focused ? C.textHighlight : C.velocity;
+							} else {
+								text = "--";
+							}
+							break;
+						case "len":
+							if (step?.length !== undefined) {
+								text = hexByte(step.length);
+								color = focused ? C.textHighlight : C.textDim;
 							} else {
 								text = "--";
 							}
@@ -163,13 +173,13 @@ export function buildSequenceView(
 					break;
 				case "ArrowLeft": {
 					let next = fIdx - 1;
-					while (next >= 0 && next >= 3) next--;
+					while (next >= 0 && next >= 4) next--;
 					if (next >= 0) newF = next;
 					break;
 				}
 				case "ArrowRight": {
 					let next = fIdx + 1;
-					while (next < fields.length && next >= 3) next = fields.length;
+					while (next < fields.length && next >= 4) next = fields.length;
 					if (next < fields.length) newF = next;
 					break;
 				}
@@ -187,8 +197,8 @@ export function buildSequenceView(
 						}
 					}
 
-					// --- Hex entry (vel, patch fields) ---
-					if (hexEntry && (fieldName === "vel" || fieldName === "patch")) {
+					// --- Hex entry (vel, len, patch fields) ---
+					if (hexEntry && (fieldName === "vel" || fieldName === "len" || fieldName === "patch")) {
 						const digit = scancodeToHex(key);
 						if (digit !== null) {
 							const { value, complete } = hexEntry.feed(digit);
@@ -201,6 +211,18 @@ export function buildSequenceView(
 									...existing,
 									trig: { ...existing.trig, velocity: clamped },
 								};
+								emit({
+									type: "setStep",
+									patternIndex: state.activePatternIndex,
+									trackIndex: trackIdx,
+									stepIndex: r,
+									step,
+								});
+							}
+
+							if (fieldName === "len" && existing) {
+								const clamped = Math.max(1, Math.min(value, 0x60));
+								const step: Step = { ...existing, length: clamped };
 								emit({
 									type: "setStep",
 									patternIndex: state.activePatternIndex,
@@ -274,6 +296,7 @@ export function buildSequenceView(
 		draw: (display) => {
 			display.drawText(NOTE_COL, 2, "N", ...C.label);
 			display.drawText(VEL_COL, 2, "V", ...C.label);
+			display.drawText(LEN_COL, 2, "L", ...C.label);
 			display.drawText(PATCH_COL, 2, "P", ...C.label);
 			display.drawText(FX1_COL, 2, "FX1", ...C.disabled);
 			display.drawText(FX2_COL, 2, "FX2", ...C.disabled);

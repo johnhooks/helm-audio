@@ -16,8 +16,9 @@ export enum Page {
 export enum StepField {
 	Note = 0,
 	Velocity = 1,
-	Patch = 2,
-	Lock = 3,
+	Length = 2,
+	Patch = 3,
+	Lock = 4,
 }
 
 export interface Cursor {
